@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useApp } from '../context/AppContext';
-import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable } from '../types';
+import { useApp } from './AppContext';
+import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable } from './types';
 import { Users, ChevronDown, ChevronRight, BookOpen, Mail, Eye, LayoutGrid, Palette, Calculator, Trash2, Clock, Calendar, CheckCircle, XCircle, ArrowLeft, ArrowRight, Plus, Trash, FileText, Save, Edit, MapPin, BrainCircuit, Loader2, List, Layers, Send, BookCopy, Sparkles, X, SaveAll, Image as ImageIcon, Upload, Filter, Monitor } from 'lucide-react';
-import { getHodDepartments, normalizeProgram, getLocalDateString } from '../services/data';
-import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from '../services/geminiService';
+import { getHodDepartments, normalizeProgram, getLocalDateString } from './data';
+import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from './geminiService';
 
 // Fallback color generator
 const getFallbackColors = (code: string, type: string) => {

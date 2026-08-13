@@ -4,10 +4,10 @@ import {
     User, Module, SurveyResponse, Role, TutorAllocation, 
     SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord, 
     Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry 
-} from '../types';
-import { parseCurriculum, parseUsers, parseRooms } from '../services/data';
-import { db } from '../services/firebase';
-import { calculateGamificationLeaderboard } from '../services/analyticsService';
+} from './types';
+import { parseCurriculum, parseUsers, parseRooms } from './data';
+import { db } from './firebase';
+import { calculateGamificationLeaderboard } from './analyticsService';
 import { 
     collection, doc, setDoc, updateDoc, deleteDoc, 
     onSnapshot, writeBatch 

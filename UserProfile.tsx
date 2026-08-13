@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from './AppContext';
 import { Camera, Save, X, Lock, User as UserIcon, Upload, Loader2 } from 'lucide-react';
 
 interface UserProfileProps {

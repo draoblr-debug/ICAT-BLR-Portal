@@ -1,4 +1,4 @@
-import { User, Module, Role } from '../types';
+import { User, Module, Role } from './types';
 
 export const LIKERT_QUESTIONS = [
     "The instructor explained the concepts clearly.",

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useApp } from '../context/AppContext';
-import { AIClassModule, AIQuizQuestion, Submission } from '../types';
+import { useApp } from './AppContext';
+import { AIClassModule, AIQuizQuestion, Submission } from './types';
 import { Send, Users, ChevronRight, ChevronLeft, BarChart, X, Monitor, Clock, PlayCircle, Eye, Youtube, Upload, CheckCircle, Image as ImageIcon } from 'lucide-react';
 import { TutorVerificationModal } from './TutorVerificationModal';
 

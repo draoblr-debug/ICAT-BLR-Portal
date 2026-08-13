@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
-import { normalizeProgram, LIKERT_QUESTIONS, CAMPUS_LIKERT_QUESTIONS, CAMPUS_FEEDBACK_CODE, getLocalDateString } from '../services/data';
-import { Module, Submission, SemesterPlanEntry, LessonPlan } from '../types';
+import { useApp } from './AppContext';
+import { normalizeProgram, LIKERT_QUESTIONS, CAMPUS_LIKERT_QUESTIONS, CAMPUS_FEEDBACK_CODE, getLocalDateString } from './data';
+import { Module, Submission, SemesterPlanEntry, LessonPlan } from './types';
 import { 
     Send, CheckCircle, BookOpen, List, Building2, FileText, Upload, Video, 
     Link as LinkIcon, Calendar, Users, ChevronRight, Clock, Lock, MessageSquare, 

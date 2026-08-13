@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { SurveyResponse, Module, AssignmentBrief, RubricCriteria, AIClassModule, QuizDifficulty, AISlide, AIQuizQuestion, LessonPlan, LessonChunk, LessonActivityType, ModuleContext, PeerReviewInput, PeerReviewSynthesisResult, PeerReviewQualityResult } from "../types";
+import { SurveyResponse, Module, AssignmentBrief, RubricCriteria, AIClassModule, QuizDifficulty, AISlide, AIQuizQuestion, LessonPlan, LessonChunk, LessonActivityType, ModuleContext, PeerReviewInput, PeerReviewSynthesisResult, PeerReviewQualityResult } from "./types";
 
 const getAI = () => {
     const apiKey = process.env.API_KEY;

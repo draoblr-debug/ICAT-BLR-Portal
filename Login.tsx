@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from './AppContext';
 import { UserCircle, Lock, Copy, KeyRound, ArrowLeft, CheckCircle } from 'lucide-react';
 
 export const Login = () => {

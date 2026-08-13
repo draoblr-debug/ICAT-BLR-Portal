@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { User } from '../types';
+import { User } from './types';
 import { Users, X } from 'lucide-react'; // Added X to imports
 
 type StudentRow = {

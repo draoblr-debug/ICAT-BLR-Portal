@@ -1,5 +1,5 @@
 
-import { SurveyResponse, Module, User, TutorAllocation, SemesterPlanEntry, LessonPlan, AIClassModule, Role, Holiday, LeaderboardEntry, AttendanceRecord, Submission, AssignmentBrief } from '../types';
+import { SurveyResponse, Module, User, TutorAllocation, SemesterPlanEntry, LessonPlan, AIClassModule, Role, Holiday, LeaderboardEntry, AttendanceRecord, Submission, AssignmentBrief } from './types';
 import { normalizeProgram, getHodDepartments, LIKERT_QUESTIONS } from './data';
 
 // Simulates server-side delay for better UX flow

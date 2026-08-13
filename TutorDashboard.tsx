@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useApp } from '../context/AppContext';
-import { AssignmentBrief, Module, Role, Submission, AttendanceRecord, LessonPlan, LessonChunk, LessonActivityType, AIClassModule, AISlide, AIQuizQuestion, ModuleContext, ModuleType } from '../types';
-import { getLocalDateString, normalizeProgram } from '../services/data';
-import { generateBriefContent, generateGradingFeedback, generateLessonPlan, generateChunkSmartContent } from '../services/geminiService';
+import { useApp } from './AppContext';
+import { AssignmentBrief, Module, Role, Submission, AttendanceRecord, LessonPlan, LessonChunk, LessonActivityType, AIClassModule, AISlide, AIQuizQuestion, ModuleContext, ModuleType } from './types';
+import { getLocalDateString, normalizeProgram } from './data';
+import { generateBriefContent, generateGradingFeedback, generateLessonPlan, generateChunkSmartContent } from './geminiService';
 import { Plus, CheckCircle, BrainCircuit, FileText, Clock, BookOpen, ArrowLeft, X, Check, ArrowRight, Loader2, Upload, Save, Send, ChevronDown, ChevronUp, Sliders, Trash2, LayoutList, Timer, Sparkles, PlayCircle, Edit, RefreshCw, Eye, EyeOff, Info, BookCopy, XCircle, Image as ImageIcon } from 'lucide-react';
 import { LiveClassSession } from './LiveClassSession';
 

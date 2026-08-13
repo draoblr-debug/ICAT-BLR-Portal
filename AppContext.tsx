@@ -6,7 +6,8 @@ import {
     Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry,
     ModuleFeedbackSession, FeedbackRecord, RvjAssessment,
     AttendanceActionPlan, SystemicAttendanceAlert,
-    FeedbackCycle, ActionPoint
+    FeedbackCycle, ActionPoint,
+    IndustryEngagement, AlumniRecord, PortfolioReview, PlacementReadinessStatus, FinalYearProject
 } from './types';
 import { parseCurriculum, parseUsers, parseRooms } from './data';
 import { db } from './firebase';
@@ -100,6 +101,11 @@ interface AppContextType {
     systemicAttendanceAlerts: SystemicAttendanceAlert[];
     feedbackCycles: FeedbackCycle[];
     actionPoints: ActionPoint[];
+    industryEngagements: IndustryEngagement[];
+    alumniRecords: AlumniRecord[];
+    portfolioReviews: PortfolioReview[];
+    placementReadiness: PlacementReadinessStatus[];
+    finalYearProjects: FinalYearProject[];
     semesterConfig: SemesterConfig | null;
     currentSemesterType: 'Odd' | 'Even';
     semesterStartDate: string;
@@ -151,6 +157,15 @@ interface AppContextType {
     updateFeedbackCycle: (cycle: FeedbackCycle) => void;
     addActionPoint: (point: ActionPoint) => void;
     updateActionPoint: (point: ActionPoint) => void;
+    addIndustryEngagement: (engagement: IndustryEngagement) => void;
+    updateIndustryEngagement: (engagement: IndustryEngagement) => void;
+    addAlumniRecord: (alumnus: AlumniRecord) => void;
+    updateAlumniRecord: (alumnus: AlumniRecord) => void;
+    addPortfolioReview: (review: PortfolioReview) => void;
+    updatePortfolioReview: (review: PortfolioReview) => void;
+    savePlacementReadiness: (status: PlacementReadinessStatus) => void;
+    addFinalYearProject: (project: FinalYearProject) => void;
+    updateFinalYearProject: (project: FinalYearProject) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -182,6 +197,11 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const [systemicAttendanceAlerts, setSystemicAttendanceAlerts] = useState<SystemicAttendanceAlert[]>([]);
     const [feedbackCycles, setFeedbackCycles] = useState<FeedbackCycle[]>([]);
     const [actionPoints, setActionPoints] = useState<ActionPoint[]>([]);
+    const [industryEngagements, setIndustryEngagements] = useState<IndustryEngagement[]>([]);
+    const [alumniRecords, setAlumniRecords] = useState<AlumniRecord[]>([]);
+    const [portfolioReviews, setPortfolioReviews] = useState<PortfolioReview[]>([]);
+    const [placementReadiness, setPlacementReadiness] = useState<PlacementReadinessStatus[]>([]);
+    const [finalYearProjects, setFinalYearProjects] = useState<FinalYearProject[]>([]);
 
     const [aiModules, setAiModules] = useState<AIClassModule[]>(() => {
         try {
@@ -291,6 +311,11 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
                         { name: 'systemic_attendance_alerts', setter: setSystemicAttendanceAlerts },
                         { name: 'feedback_cycles', setter: setFeedbackCycles },
                         { name: 'action_points', setter: setActionPoints },
+                        { name: 'industry_engagements', setter: setIndustryEngagements },
+                        { name: 'alumni_records', setter: setAlumniRecords },
+                        { name: 'portfolio_reviews', setter: setPortfolioReviews },
+                        { name: 'placement_readiness', setter: setPlacementReadiness },
+                        { name: 'final_year_projects', setter: setFinalYearProjects },
                         { name: 'users', setter: (firestoreUsers: any[]) => {
                             const cleanedUsers = deepClean(firestoreUsers);
                             setUsers(prev => {
@@ -556,6 +581,21 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const updateFeedbackCycle = (cycle: FeedbackCycle) => { setFeedbackCycles(prev => prev.map(c => c.id === cycle.id ? cycle : c)); saveToFirestore('feedback_cycles', cycle.id, cycle); };
     const addActionPoint = (point: ActionPoint) => { setActionPoints(prev => [...prev, point]); saveToFirestore('action_points', point.id, point); };
     const updateActionPoint = (point: ActionPoint) => { setActionPoints(prev => prev.map(p => p.id === point.id ? point : p)); saveToFirestore('action_points', point.id, point); };
+    const addIndustryEngagement = (engagement: IndustryEngagement) => { setIndustryEngagements(prev => [...prev, engagement]); saveToFirestore('industry_engagements', engagement.id, engagement); };
+    const updateIndustryEngagement = (engagement: IndustryEngagement) => { setIndustryEngagements(prev => prev.map(e => e.id === engagement.id ? engagement : e)); saveToFirestore('industry_engagements', engagement.id, engagement); };
+    const addAlumniRecord = (alumnus: AlumniRecord) => { setAlumniRecords(prev => [...prev, alumnus]); saveToFirestore('alumni_records', alumnus.id, alumnus); };
+    const updateAlumniRecord = (alumnus: AlumniRecord) => { setAlumniRecords(prev => prev.map(a => a.id === alumnus.id ? alumnus : a)); saveToFirestore('alumni_records', alumnus.id, alumnus); };
+    const addPortfolioReview = (review: PortfolioReview) => { setPortfolioReviews(prev => [...prev, review]); saveToFirestore('portfolio_reviews', review.id, review); };
+    const updatePortfolioReview = (review: PortfolioReview) => { setPortfolioReviews(prev => prev.map(r => r.id === review.id ? review : r)); saveToFirestore('portfolio_reviews', review.id, review); };
+    const savePlacementReadiness = (status: PlacementReadinessStatus) => {
+        setPlacementReadiness(prev => {
+            const filtered = prev.filter(p => p.studentId !== status.studentId);
+            return [...filtered, status];
+        });
+        saveToFirestore('placement_readiness', status.id, status);
+    };
+    const addFinalYearProject = (project: FinalYearProject) => { setFinalYearProjects(prev => [...prev, project]); saveToFirestore('final_year_projects', project.id, project); };
+    const updateFinalYearProject = (project: FinalYearProject) => { setFinalYearProjects(prev => prev.map(p => p.id === project.id ? project : p)); saveToFirestore('final_year_projects', project.id, project); };
 
     const runGamificationEngine = async () => {
         // Trigger Server-Side Logic Simulation
@@ -574,6 +614,7 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
             feedbackSessions, feedbackRecords, rvjAssessments,
             attendanceActionPlans, systemicAttendanceAlerts,
             feedbackCycles, actionPoints,
+            industryEngagements, alumniRecords, portfolioReviews, placementReadiness, finalYearProjects,
             currentSemesterType, semesterStartDate, semesterEndDate, isOfflineMode, activeRole,
             setActiveRole, login, logout, submitSurvey, assignTutor, toggleSemesterPlan,
             clearSemesterPlan, addCustomEvent, deleteCustomEvent, addBrief, updateBrief,
@@ -585,7 +626,10 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
             addRvjAssessment, updateRvjAssessment,
             addAttendanceActionPlan, updateAttendanceActionPlan,
             addSystemicAttendanceAlert, updateSystemicAttendanceAlert,
-            addFeedbackCycle, updateFeedbackCycle, addActionPoint, updateActionPoint
+            addFeedbackCycle, updateFeedbackCycle, addActionPoint, updateActionPoint,
+            addIndustryEngagement, updateIndustryEngagement, addAlumniRecord, updateAlumniRecord,
+            addPortfolioReview, updatePortfolioReview, savePlacementReadiness,
+            addFinalYearProject, updateFinalYearProject
         }}>
             {children}
         </AppContext.Provider>

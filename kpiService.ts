@@ -1,5 +1,5 @@
-import { SurveyResponse, Module, User, TutorAllocation, FeedbackCycle, ActionPoint, KpiResult } from './types';
-import { CYCLE_FEEDBACK_QUESTIONS, CYCLE_FEEDBACK_CATEGORIES, normalizeProgram } from './data';
+import { SurveyResponse, Module, User, TutorAllocation, FeedbackCycle, ActionPoint, KpiResult, IndustryEngagement, PlacementReadinessStatus, FinalYearProject } from './types';
+import { CYCLE_FEEDBACK_QUESTIONS, CYCLE_FEEDBACK_CATEGORIES, normalizeProgram, INDUSTRY_ENGAGEMENT_COUNTED_STAGES, INDUSTRY_ENGAGEMENT_TARGET_PER_MODULE, AWARD_PIPELINE_MENTORING_TARGET } from './data';
 
 // Simulates server-side delay, matching the convention already in analyticsService.ts.
 const simulateNetworkDelay = async () => new Promise(resolve => setTimeout(resolve, 100));
@@ -162,5 +162,140 @@ export const calculateActionPointClosureRate = async (
         unit: 'percent',
         status,
         period,
+    };
+};
+
+// --- INDUSTRY, ALUMNI, PORTFOLIO & PLACEMENT (KRA/KPI Phase 4) ---
+
+export interface ModuleIndustryEngagementCoverage {
+    moduleCode: string;
+    moduleTitle: string;
+    countedEngagements: number;
+    target: number;
+    metTarget: boolean;
+}
+
+// Target: >=2 relevant industry experts/seminars per ACTIVE module per semester, measuring
+// meaningful engagement and documented outcomes — NOT emails sent. Only engagements that
+// reached INDUSTRY_ENGAGEMENT_COUNTED_STAGES (Student Exposure, Document Outcome, Maintain
+// Relationship) count; earlier pipeline stages (Identify/Contact/Engage/Schedule/
+// Collaborate) are in-progress work, not delivered engagement.
+export const calculateIndustryEngagementCoverage = async (
+    engagements: IndustryEngagement[],
+    curriculum: Module[],
+    currentSemesterType: 'Odd' | 'Even'
+): Promise<{ byModule: ModuleIndustryEngagementCoverage[]; overall: KpiResult }> => {
+    await simulateNetworkDelay();
+
+    const activeModules = curriculum.filter(m => {
+        const isOdd = m.sem % 2 !== 0;
+        return currentSemesterType === 'Odd' ? isOdd : !isOdd;
+    });
+
+    const byModule: ModuleIndustryEngagementCoverage[] = activeModules.map(m => {
+        const countedEngagements = engagements.filter(e => e.moduleCode === m.code && INDUSTRY_ENGAGEMENT_COUNTED_STAGES.includes(e.stage)).length;
+        return {
+            moduleCode: m.code,
+            moduleTitle: m.title,
+            countedEngagements,
+            target: INDUSTRY_ENGAGEMENT_TARGET_PER_MODULE,
+            metTarget: countedEngagements >= INDUSTRY_ENGAGEMENT_TARGET_PER_MODULE,
+        };
+    }).sort((a, b) => a.countedEngagements - b.countedEngagements);
+
+    const modulesMetTarget = byModule.filter(m => m.metTarget).length;
+    const actual = activeModules.length > 0 ? Math.round((modulesMetTarget / activeModules.length) * 100) : 0;
+    const status: KpiResult['status'] = activeModules.length === 0
+        ? 'No Data'
+        : actual >= 100 ? 'On Track' : actual >= 60 ? 'At Risk' : 'Off Track';
+
+    return {
+        byModule,
+        overall: {
+            kpiId: 'industry-engagement-coverage',
+            label: 'Active Modules Meeting Industry Engagement Target (>=2/semester)',
+            actual,
+            target: 100,
+            unit: 'percent',
+            status,
+            period: `${currentSemesterType} Semester`,
+        },
+    };
+};
+
+// Denominator is deliberately the set of students staff have actually started tracking
+// (i.e. who have a PlacementReadinessStatus record), not an auto-detected "final year"
+// population — there's no reliable signal in Module/User for how many years a given
+// program runs, so guessing which students are in their final year would risk a wrong and
+// silently misleading denominator. Target: 100% Placed OR on a documented track.
+export const calculatePlacementReadinessRate = async (
+    placementReadiness: PlacementReadinessStatus[]
+): Promise<KpiResult> => {
+    await simulateNetworkDelay();
+
+    const total = placementReadiness.length;
+    const onTrack = placementReadiness.filter(p => p.placementStatus === 'Placed' || p.documentedTrack.trim().length > 0).length;
+    const actual = total > 0 ? Math.round((onTrack / total) * 100) : 0;
+    const status: KpiResult['status'] = total === 0
+        ? 'No Data'
+        : actual >= 100 ? 'On Track' : actual >= 75 ? 'At Risk' : 'Off Track';
+
+    return {
+        kpiId: 'placement-readiness-rate',
+        label: 'Tracked Final-Year Students Placed or on a Documented Track',
+        actual,
+        target: 100,
+        unit: 'percent',
+        status,
+        period: 'Current Tracking Cohort',
+    };
+};
+
+export interface DepartmentAwardSubmission {
+    department: string;
+    submittedCount: number;
+    metTarget: boolean;
+}
+
+// Two-level award pipeline: >=1 project per department submitted externally per year, and
+// >=3 projects campus-wide identified with genuine award potential receiving extra
+// mentoring. "Department" is derived from FinalYearProject.batch (same "{programTitle} •
+// Year {n}" convention used throughout — see batchLabel in WeeklyFeedback.tsx /
+// AttendanceWatchlist.tsx), taking the programTitle portion as a department proxy.
+export const calculateAwardPipelineStatus = async (
+    projects: FinalYearProject[]
+): Promise<{ byDepartment: DepartmentAwardSubmission[]; mentoringKpi: KpiResult }> => {
+    await simulateNetworkDelay();
+
+    const deptOf = (batch: string) => batch.split(' • ')[0] || batch;
+
+    const byDeptProjects = new Map<string, FinalYearProject[]>();
+    projects.forEach(p => {
+        const dept = deptOf(p.batch);
+        if (!byDeptProjects.has(dept)) byDeptProjects.set(dept, []);
+        byDeptProjects.get(dept)!.push(p);
+    });
+
+    const byDepartment: DepartmentAwardSubmission[] = Array.from(byDeptProjects.entries()).map(([department, projs]) => {
+        const submittedCount = projs.filter(p => p.submittedExternally).length;
+        return { department, submittedCount, metTarget: submittedCount >= 1 };
+    }).sort((a, b) => a.submittedCount - b.submittedCount);
+
+    const mentoringCount = projects.filter(p => p.identifiedForExtraMentoring).length;
+    const status: KpiResult['status'] = projects.length === 0
+        ? 'No Data'
+        : mentoringCount >= AWARD_PIPELINE_MENTORING_TARGET ? 'On Track' : mentoringCount >= 1 ? 'At Risk' : 'Off Track';
+
+    return {
+        byDepartment,
+        mentoringKpi: {
+            kpiId: 'award-pipeline-mentoring',
+            label: 'Projects Identified for Extra Award Mentoring',
+            actual: mentoringCount,
+            target: AWARD_PIPELINE_MENTORING_TARGET,
+            unit: 'count',
+            status,
+            period: 'Current Year',
+        },
     };
 };

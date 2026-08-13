@@ -7,6 +7,8 @@ import { getHodDepartments, normalizeProgram, getLocalDateString, RUBRIC_GRADE_L
 import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from './geminiService';
 import { WeeklyFeedback } from './WeeklyFeedback';
 import { AttendanceWatchlist } from './AttendanceWatchlist';
+import { IndustryAlumniPanel } from './IndustryAlumniPanel';
+import { FinalYearTrackPanel } from './FinalYearTrackPanel';
 
 // Fallback color generator
 const getFallbackColors = (code: string, type: string) => {
@@ -54,7 +56,7 @@ const safeDeepCopy = <T,>(obj: T): T => {
 
 export const HodDashboard = () => {
   const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching' | 'attendance'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching' | 'attendance' | 'industry' | 'final-year'>('overview');
   const [expandedPrograms, setExpandedPrograms] = useState<string[]>([]);
   const [expandedYears, setExpandedYears] = useState<string[]>([]);
   const [trackingModule, setTrackingModule] = useState<Module | null>(null);
@@ -115,6 +117,16 @@ export const HodDashboard = () => {
       const moduleCodes = allDepartmentModules.map(m => m.code);
       return briefs.filter(b => moduleCodes.includes(b.moduleCode));
   }, [briefs, allDepartmentModules]);
+
+  // All students in the department, any year — used by Phase 4 panels (portfolio/
+  // placement/final-year projects). Deliberately not filtered to a "final year" subset:
+  // there's no reliable signal for how many years a given program runs, so the panels let
+  // staff pick the actual final-year students themselves rather than guessing.
+  const allDepartmentStudents = useMemo(() => {
+      if (allDepartmentModules.length === 0) return [];
+      const deptProgramsNorm: string[] = Array.from(new Set(allDepartmentModules.map(m => normalizeProgram(m.programTitle))));
+      return users.filter(u => u.role === Role.Student && deptProgramsNorm.some(dp => normalizeProgram(u.programId).includes(dp) || dp.includes(normalizeProgram(u.programId))));
+  }, [users, allDepartmentModules]);
 
   const groupedModules = useMemo(() => {
     if (!currentUser) return {};
@@ -379,7 +391,7 @@ export const HodDashboard = () => {
                 <p className="text-sm text-gray-500 mt-1">Managing allocations and assignments for {currentSemesterType} Semester.</p>
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg flex-wrap gap-1">
-                {['overview', 'briefs', 'planner', 'timetable', 'teaching', 'attendance'].map(tab => (
+                {['overview', 'briefs', 'planner', 'timetable', 'teaching', 'attendance', 'industry', 'final-year'].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} capitalize`}>{tab}</button>
                 ))}
             </div>
@@ -394,6 +406,14 @@ export const HodDashboard = () => {
 
         {activeTab === 'attendance' && (
             <AttendanceWatchlist scope="department" title="Department Attendance Watchlist" />
+        )}
+
+        {activeTab === 'industry' && (
+            <IndustryAlumniPanel scopedModules={allDepartmentModules} title="Industry & Alumni Engagement" />
+        )}
+
+        {activeTab === 'final-year' && (
+            <FinalYearTrackPanel students={allDepartmentStudents} title="Final-Year Track" />
         )}
 
         {activeTab === 'overview' && (

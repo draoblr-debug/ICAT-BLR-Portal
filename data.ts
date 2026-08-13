@@ -90,6 +90,45 @@ export const CYCLE_FEEDBACK_CATEGORIES: CycleFeedbackCategory[] = [
 // same detailedRatings[] infrastructure LIKERT_QUESTIONS already uses.
 export const CYCLE_FEEDBACK_QUESTIONS = CYCLE_FEEDBACK_CATEGORIES.map(c => c.question);
 
+// --- INDUSTRY, ALUMNI, PORTFOLIO & PLACEMENT (Phase 4) ---
+
+export const INDUSTRY_ENGAGEMENT_TYPES = [
+    'Guest Lecture', 'Seminar', 'Masterclass', 'Industrial Visit', 'Mentorship', 'Live Project', 'Industry Portfolio Review',
+];
+
+// Identify -> Contact -> Engage -> Schedule -> Collaborate -> Student Exposure ->
+// Document Outcome -> Maintain Relationship, in pipeline order.
+export const INDUSTRY_PIPELINE_STAGES = [
+    'Identify', 'Contact', 'Engage', 'Schedule', 'Collaborate', 'Student Exposure', 'Document Outcome', 'Maintain Relationship',
+];
+
+// An engagement only counts toward the "meaningful engagement" target once it has actually
+// reached students or been documented — see calculateIndustryEngagementCoverage in
+// kpiService.ts. Identify/Contact/Engage/Schedule/Collaborate are pipeline progress, not
+// delivered engagement.
+export const INDUSTRY_ENGAGEMENT_COUNTED_STAGES = ['Student Exposure', 'Document Outcome', 'Maintain Relationship'];
+export const INDUSTRY_ENGAGEMENT_TARGET_PER_MODULE = 2;
+
+export const PORTFOLIO_REVIEW_DIMENSIONS: { key: string; label: string }[] = [
+    { key: 'portfolioStructure', label: 'Portfolio Structure' },
+    { key: 'projectSelection', label: 'Project Selection' },
+    { key: 'research', label: 'Research' },
+    { key: 'designProcess', label: 'Design Process' },
+    { key: 'craft', label: 'Craft' },
+    { key: 'technicalSkills', label: 'Technical Skills' },
+    { key: 'presentation', label: 'Presentation' },
+    { key: 'industryRelevance', label: 'Industry Relevance' },
+    { key: 'employability', label: 'Employability' },
+];
+
+export const PLACEMENT_STATUS_OPTIONS = [
+    'Not Started', 'Preparing', 'Applying', 'Interviewing', 'Offer Received', 'Placed', 'Opted Out',
+];
+
+export const ENTREPRENEURIAL_POTENTIAL_OPTIONS = ['None', 'Low', 'Medium', 'High'];
+export const AWARD_READINESS_OPTIONS = ['Not Assessed', 'Not Ready', 'Ready', 'Submitted', 'Shortlisted', 'Won'];
+export const AWARD_PIPELINE_MENTORING_TARGET = 3; // >=3 projects identified with genuine award potential, campus-wide
+
 // ICAT-internal early-warning thresholds — NOT university/statutory attendance-eligibility
 // rules. Falling below EARLY_WARNING puts a student on the watchlist; falling below
 // CRITICAL requires a documented intervention + written recovery plan AND triggers formal

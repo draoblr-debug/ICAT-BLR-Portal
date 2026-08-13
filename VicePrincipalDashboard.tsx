@@ -3,7 +3,10 @@ import { useApp } from './AppContext';
 import { Role, User, ActionPoint, FeedbackCycle, KpiResult } from './types';
 import { normalizeProgram } from './data';
 import { calculateRollingAttendance, calculateFeedbackCompliance, StudentBatchAttendance } from './analyticsService';
-import { calculateCycleDetailedAnalysis, calculateCycleTrends, calculateActionPointClosureRate, CycleTrendGrouping, CycleTrendSeries } from './kpiService';
+import {
+    calculateCycleDetailedAnalysis, calculateCycleTrends, calculateActionPointClosureRate, CycleTrendGrouping, CycleTrendSeries,
+    calculateIndustryEngagementCoverage, calculatePlacementReadinessRate, calculateAwardPipelineStatus
+} from './kpiService';
 import {
     RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -48,10 +51,10 @@ const kpiStatusColor: Record<KpiResult['status'], string> = {
 
 export const VicePrincipalDashboard = () => {
     const {
-        currentUser, curriculum, users, allocations, surveys, attendance,
+        currentUser, curriculum, users, allocations, surveys, attendance, currentSemesterType,
         feedbackCycles, addFeedbackCycle, updateFeedbackCycle,
         actionPoints, addActionPoint, updateActionPoint,
-        feedbackSessions,
+        feedbackSessions, industryEngagements, placementReadiness, finalYearProjects,
     } = useApp();
 
     const [activeTab, setActiveTab] = useState<'overview' | 'cycles' | 'analysis' | 'actions' | 'audit'>('overview');
@@ -107,6 +110,18 @@ export const VicePrincipalDashboard = () => {
             setHodAudit(r.byTutor.filter(row => hodIds.has(row.id)));
         });
     }, [feedbackSessions, users, curriculum]);
+
+    // Industry engagement, placement and award pipeline (Phase 4) — campus-wide, unscoped.
+    const [industryCoverage, setIndustryCoverage] = useState<Awaited<ReturnType<typeof calculateIndustryEngagementCoverage>> | null>(null);
+    useEffect(() => {
+        calculateIndustryEngagementCoverage(industryEngagements, curriculum, currentSemesterType).then(setIndustryCoverage);
+    }, [industryEngagements, curriculum, currentSemesterType]);
+
+    const [placementKpi, setPlacementKpi] = useState<KpiResult | null>(null);
+    useEffect(() => { calculatePlacementReadinessRate(placementReadiness).then(setPlacementKpi); }, [placementReadiness]);
+
+    const [awardStatus, setAwardStatus] = useState<Awaited<ReturnType<typeof calculateAwardPipelineStatus>> | null>(null);
+    useEffect(() => { calculateAwardPipelineStatus(finalYearProjects).then(setAwardStatus); }, [finalYearProjects]);
 
     if (!currentUser) return null;
 
@@ -244,8 +259,58 @@ export const VicePrincipalDashboard = () => {
                         </div>
 
                         <div className="bg-white shadow rounded-lg p-6">
-                            <div className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><Info size={12} /> Weak External Engagement</div>
-                            <div className="text-sm text-gray-400 italic mt-2">No Data — industry/alumni engagement tracking is not yet implemented (planned for Phase 4). This panel will populate once that data exists rather than showing a fabricated figure.</div>
+                            <div className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><Info size={12} /> Weak Industry Engagement</div>
+                            {industryCoverage ? (
+                                industryCoverage.byModule.length === 0 ? (
+                                    <div className="text-sm text-gray-400 italic mt-2">No active modules this semester.</div>
+                                ) : (
+                                    <>
+                                        <div className="text-3xl font-bold text-gray-900">{industryCoverage.overall.actual}%</div>
+                                        <div className="text-[10px] text-gray-400 mt-1">of active modules meeting the ≥2/semester target</div>
+                                        {industryCoverage.byModule.filter(m => !m.metTarget).length > 0 && (
+                                            <div className="mt-2 text-xs text-gray-600">
+                                                {industryCoverage.byModule.filter(m => !m.metTarget).length} module{industryCoverage.byModule.filter(m => !m.metTarget).length === 1 ? '' : 's'} below target
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            ) : <Loader2 className="animate-spin text-gray-400" size={16} />}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <div className="text-xs font-bold text-gray-500 uppercase mb-2">{placementKpi?.label || 'Placement Readiness'}</div>
+                            {placementKpi ? (
+                                placementKpi.status === 'No Data' ? (
+                                    <div className="text-sm text-gray-400 italic">No students tracked yet — see the HOD's Final-Year tab.</div>
+                                ) : (
+                                    <>
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-3xl font-bold text-gray-900">{placementKpi.actual}%</span>
+                                            <span className="text-xs text-gray-400 mb-1">target {placementKpi.target}%</span>
+                                        </div>
+                                        <span className={`inline-block mt-2 text-xs font-bold px-2 py-1 rounded-full ${kpiStatusColor[placementKpi.status]}`}>{placementKpi.status}</span>
+                                    </>
+                                )
+                            ) : <Loader2 className="animate-spin text-gray-400" size={16} />}
+                        </div>
+
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <div className="text-xs font-bold text-gray-500 uppercase mb-2">{awardStatus?.mentoringKpi.label || 'Award Pipeline'}</div>
+                            {awardStatus ? (
+                                awardStatus.mentoringKpi.status === 'No Data' ? (
+                                    <div className="text-sm text-gray-400 italic">No final-year projects logged yet.</div>
+                                ) : (
+                                    <>
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-3xl font-bold text-gray-900">{awardStatus.mentoringKpi.actual}</span>
+                                            <span className="text-xs text-gray-400 mb-1">target {awardStatus.mentoringKpi.target}</span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-1">{awardStatus.byDepartment.filter(d => d.metTarget).length}/{awardStatus.byDepartment.length} departments with ≥1 external submission this year</div>
+                                    </>
+                                )
+                            ) : <Loader2 className="animate-spin text-gray-400" size={16} />}
                         </div>
                     </div>
 

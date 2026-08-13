@@ -564,3 +564,119 @@ export interface KpiResult {
   status: 'On Track' | 'At Risk' | 'Off Track' | 'No Data';
   period: string;
 }
+
+// --- INDUSTRY, ALUMNI, PORTFOLIO & PLACEMENT (KRA/KPI Phase 4) ---
+// None of this existed in any form before this phase.
+
+export type IndustryEngagementType = 'Guest Lecture' | 'Seminar' | 'Masterclass' | 'Industrial Visit' | 'Mentorship' | 'Live Project' | 'Industry Portfolio Review';
+
+// Identify -> Contact -> Engage -> Schedule -> Collaborate -> Student Exposure ->
+// Document Outcome -> Maintain Relationship. Target (>=2 per active module per semester)
+// is measured against engagements that actually reached students, not emails sent — see
+// calculateIndustryEngagementCoverage in kpiService.ts for exactly which stages count.
+export type IndustryPipelineStage = 'Identify' | 'Contact' | 'Engage' | 'Schedule' | 'Collaborate' | 'Student Exposure' | 'Document Outcome' | 'Maintain Relationship';
+
+export interface IndustryEngagement {
+  id: string;
+  moduleCode: string;
+  type: IndustryEngagementType;
+  expertName: string;
+  expertOrganization: string;
+  stage: IndustryPipelineStage;
+  scheduledDate?: string;       // ISO date
+  studentsExposedCount?: number;
+  outcomeDocumented: boolean;
+  outcomeNotes?: string;
+  relationshipNotes?: string;
+  createdAt: number;
+  createdBy: string;            // staffId
+  updatedAt: number;
+}
+
+// Institutionally-appropriate fields only, deliberately — no personal data beyond what's
+// needed to run an alumni network (no phone numbers, addresses, socials, etc.).
+export interface AlumniRecord {
+  id: string;
+  name: string;
+  graduationYear: number;
+  discipline: string;
+  currentCompany: string;
+  currentRole: string;
+  location: string;
+  areaOfExpertise: string;
+  willingToMentor: boolean;
+  willingToSpeak: boolean;
+  willingForInternships: boolean;
+  willingForPortfolioReviews: boolean;
+  willingForLiveProjects: boolean;
+  contactStatus: 'Not Contacted' | 'Contacted' | 'Engaged' | 'Unresponsive';
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Final-year portfolio review — either a faculty review or a periodic industry-expert
+// review, both recorded on the same shape so they read consistently side by side. Graded
+// on the same Excellent/Very Good/Good/Average/Poor scale as RubricLevel and RvjAssessment.
+export interface PortfolioReview {
+  id: string;
+  studentId: string;
+  reviewerType: 'Faculty' | 'Industry Expert';
+  reviewerId?: string;          // staffId, when reviewerType is 'Faculty'
+  reviewerName?: string;        // name (+ organization), when reviewerType is 'Industry Expert'
+  reviewDate: string;           // ISO date
+  dimensions: {
+    portfolioStructure: string;
+    projectSelection: string;
+    research: string;
+    designProcess: string;
+    craft: string;
+    technicalSkills: string;
+    presentation: string;
+    industryRelevance: string;
+    employability: string;
+  };
+  areasForImprovement: string;
+  createdAt: number;
+  createdBy: string;             // staffId
+}
+
+// One record per final-year student. Target: 100% Placed OR a non-empty documentedTrack —
+// see calculatePlacementReadinessRate in kpiService.ts.
+export interface PlacementReadinessStatus {
+  id: string;                    // studentId
+  studentId: string;
+  portfolioReady: boolean;
+  resumeReady: boolean;
+  skillsAssessment: string;        // Excellent..Poor
+  communicationReadiness: string;  // Excellent..Poor
+  interviewReadiness: string;      // Excellent..Poor
+  applicationsSubmitted: number;
+  interviewsAttended: number;
+  offersReceived: number;
+  placementStatus: 'Not Started' | 'Preparing' | 'Applying' | 'Interviewing' | 'Offer Received' | 'Placed' | 'Opted Out';
+  documentedTrack: string;         // required narrative plan when not yet Placed
+  lastUpdated: number;
+  updatedBy: string;               // staffId
+}
+
+// Two-level award pipeline (see calculateAwardPipelineStatus in kpiService.ts):
+// >=1 project/department submitted externally per year, and >=3 identified with genuine
+// award potential receiving extra mentoring (identifiedForExtraMentoring).
+export interface FinalYearProject {
+  id: string;
+  studentId: string;
+  batch: string;
+  title: string;
+  moduleCode?: string;
+  sdgLinkage?: string;              // SDG(s) / social-impact / NGO partner, free text
+  crossDepartmentCollaboration: boolean;
+  collaboratingDepartments?: string[];
+  entrepreneurialPotential: 'None' | 'Low' | 'Medium' | 'High';
+  awardReadiness: 'Not Assessed' | 'Not Ready' | 'Ready' | 'Submitted' | 'Shortlisted' | 'Won';
+  submittedExternally: boolean;
+  externalAwardName?: string;
+  identifiedForExtraMentoring: boolean;
+  mentoringNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+}

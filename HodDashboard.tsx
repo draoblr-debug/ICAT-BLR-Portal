@@ -389,7 +389,52 @@ export const HodDashboard = () => {
                 )}
             </div>
         )}
-        
+
+        {/* RECONSTRUCTED: this tab's body was missing from the source export (handleOpenCreateBrief,
+            handleOpenEditBrief and departmentBriefs were defined above but never referenced anywhere).
+            Wires those existing handlers into the Brief Creation Modal below. Please verify this
+            matches the intended "Briefs" tab layout. */}
+        {activeTab === 'briefs' && (
+            <div className="bg-white shadow rounded-lg">
+                <div className="p-6 flex justify-between items-center border-b">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">Assignment Briefs</h3>
+                        <p className="text-sm text-gray-500 mt-1">Create and manage briefs for department modules.</p>
+                    </div>
+                    <button onClick={handleOpenCreateBrief} className="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-indigo-700 flex items-center">
+                        <Plus size={16} className="mr-2" /> Create Brief
+                    </button>
+                </div>
+                {departmentBriefs.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">No briefs created yet.</div>
+                ) : (
+                    <ul className="divide-y divide-gray-200">
+                        {departmentBriefs.slice().sort((a, b) => b.createdAt - a.createdAt).map(brief => {
+                            const mod = curriculum.find(m => m.code === brief.moduleCode);
+                            const statusStyle: Record<AssignmentBrief['status'], string> = {
+                                'Draft': 'bg-gray-100 text-gray-600',
+                                'Pending Approval': 'bg-yellow-100 text-yellow-700',
+                                'Published': 'bg-green-100 text-green-700',
+                                'Rejected': 'bg-red-100 text-red-700',
+                            };
+                            return (
+                                <li key={brief.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                                    <div>
+                                        <div className="font-medium text-gray-900">{brief.title}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5">{mod?.title || brief.moduleCode} &middot; {brief.weeks} weeks</div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[brief.status]}`}>{brief.status}</span>
+                                        <button onClick={() => handleOpenEditBrief(brief)} className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded"><Edit size={16} /></button>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </div>
+        )}
+
         {activeTab === 'planner' && (
             <div className="space-y-6">
                 {/* Controls */}
@@ -915,6 +960,7 @@ export const HodDashboard = () => {
                         </div>
                     </div>
                 </div>
+            </div>
             )}
     </div>
   );

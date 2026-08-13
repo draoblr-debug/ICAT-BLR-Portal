@@ -971,6 +971,7 @@ export const StudentDashboard = () => {
                         </div>
                     </div>
                 </div>
+            </div>
             )}
 
         {/* Feedback Modal - No Changes */}

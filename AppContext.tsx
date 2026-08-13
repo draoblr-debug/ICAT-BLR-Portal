@@ -4,7 +4,8 @@ import {
     User, Module, SurveyResponse, Role, TutorAllocation,
     SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord,
     Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry,
-    ModuleFeedbackSession, FeedbackRecord, RvjAssessment
+    ModuleFeedbackSession, FeedbackRecord, RvjAssessment,
+    AttendanceActionPlan, SystemicAttendanceAlert
 } from './types';
 import { parseCurriculum, parseUsers, parseRooms } from './data';
 import { db } from './firebase';
@@ -94,6 +95,8 @@ interface AppContextType {
     feedbackSessions: ModuleFeedbackSession[];
     feedbackRecords: FeedbackRecord[];
     rvjAssessments: RvjAssessment[];
+    attendanceActionPlans: AttendanceActionPlan[];
+    systemicAttendanceAlerts: SystemicAttendanceAlert[];
     semesterConfig: SemesterConfig | null;
     currentSemesterType: 'Odd' | 'Even';
     semesterStartDate: string;
@@ -137,6 +140,10 @@ interface AppContextType {
     updateFeedbackRecord: (record: FeedbackRecord) => void;
     addRvjAssessment: (assessment: RvjAssessment) => void;
     updateRvjAssessment: (assessment: RvjAssessment) => void;
+    addAttendanceActionPlan: (plan: AttendanceActionPlan) => void;
+    updateAttendanceActionPlan: (plan: AttendanceActionPlan) => void;
+    addSystemicAttendanceAlert: (alert: SystemicAttendanceAlert) => void;
+    updateSystemicAttendanceAlert: (alert: SystemicAttendanceAlert) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -164,6 +171,8 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const [feedbackSessions, setFeedbackSessions] = useState<ModuleFeedbackSession[]>([]);
     const [feedbackRecords, setFeedbackRecords] = useState<FeedbackRecord[]>([]);
     const [rvjAssessments, setRvjAssessments] = useState<RvjAssessment[]>([]);
+    const [attendanceActionPlans, setAttendanceActionPlans] = useState<AttendanceActionPlan[]>([]);
+    const [systemicAttendanceAlerts, setSystemicAttendanceAlerts] = useState<SystemicAttendanceAlert[]>([]);
 
     const [aiModules, setAiModules] = useState<AIClassModule[]>(() => {
         try {
@@ -269,6 +278,8 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
                         { name: 'module_feedback_sessions', setter: setFeedbackSessions },
                         { name: 'feedback_records', setter: setFeedbackRecords },
                         { name: 'rvj_assessments', setter: setRvjAssessments },
+                        { name: 'attendance_action_plans', setter: setAttendanceActionPlans },
+                        { name: 'systemic_attendance_alerts', setter: setSystemicAttendanceAlerts },
                         { name: 'users', setter: (firestoreUsers: any[]) => {
                             const cleanedUsers = deepClean(firestoreUsers);
                             setUsers(prev => {
@@ -526,6 +537,10 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const updateFeedbackRecord = (record: FeedbackRecord) => { setFeedbackRecords(prev => prev.map(r => r.id === record.id ? record : r)); saveToFirestore('feedback_records', record.id, record); };
     const addRvjAssessment = (assessment: RvjAssessment) => { setRvjAssessments(prev => [...prev, assessment]); saveToFirestore('rvj_assessments', assessment.id, assessment); };
     const updateRvjAssessment = (assessment: RvjAssessment) => { setRvjAssessments(prev => prev.map(a => a.id === assessment.id ? assessment : a)); saveToFirestore('rvj_assessments', assessment.id, assessment); };
+    const addAttendanceActionPlan = (plan: AttendanceActionPlan) => { setAttendanceActionPlans(prev => [...prev, plan]); saveToFirestore('attendance_action_plans', plan.id, plan); };
+    const updateAttendanceActionPlan = (plan: AttendanceActionPlan) => { setAttendanceActionPlans(prev => prev.map(p => p.id === plan.id ? plan : p)); saveToFirestore('attendance_action_plans', plan.id, plan); };
+    const addSystemicAttendanceAlert = (alert: SystemicAttendanceAlert) => { setSystemicAttendanceAlerts(prev => [...prev, alert]); saveToFirestore('systemic_attendance_alerts', alert.id, alert); };
+    const updateSystemicAttendanceAlert = (alert: SystemicAttendanceAlert) => { setSystemicAttendanceAlerts(prev => prev.map(a => a.id === alert.id ? alert : a)); saveToFirestore('systemic_attendance_alerts', alert.id, alert); };
 
     const runGamificationEngine = async () => {
         // Trigger Server-Side Logic Simulation
@@ -542,6 +557,7 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
             briefs, submissions, attendance, holidays, customEvents, rooms, aiModules, lessonPlans, moduleSyllabi,
             leaderboard, semesterConfig,
             feedbackSessions, feedbackRecords, rvjAssessments,
+            attendanceActionPlans, systemicAttendanceAlerts,
             currentSemesterType, semesterStartDate, semesterEndDate, isOfflineMode, activeRole,
             setActiveRole, login, logout, submitSurvey, assignTutor, toggleSemesterPlan,
             clearSemesterPlan, addCustomEvent, deleteCustomEvent, addBrief, updateBrief,
@@ -550,7 +566,9 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
             addRoom, updateRoom, deleteRoom, addAiModule, updateAiModule, deleteAiModule,
             addLessonPlan, updateLessonPlan, saveModuleSyllabus, runGamificationEngine,
             addFeedbackSession, updateFeedbackSession, addFeedbackRecord, updateFeedbackRecord,
-            addRvjAssessment, updateRvjAssessment
+            addRvjAssessment, updateRvjAssessment,
+            addAttendanceActionPlan, updateAttendanceActionPlan,
+            addSystemicAttendanceAlert, updateSystemicAttendanceAlert
         }}>
             {children}
         </AppContext.Provider>

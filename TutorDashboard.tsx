@@ -7,6 +7,7 @@ import { generateBriefContent, generateGradingFeedback, generateLessonPlan, gene
 import { Plus, CheckCircle, BrainCircuit, FileText, Clock, BookOpen, ArrowLeft, X, Check, ArrowRight, Loader2, Upload, Save, Send, ChevronDown, ChevronUp, Sliders, Trash2, LayoutList, Timer, Sparkles, PlayCircle, Edit, RefreshCw, Eye, EyeOff, Info, BookCopy, XCircle, Image as ImageIcon } from 'lucide-react';
 import { LiveClassSession } from './LiveClassSession';
 import { WeeklyFeedback } from './WeeklyFeedback';
+import { AttendanceWatchlist } from './AttendanceWatchlist';
 
 // Grading Constants
 const GRADE_RANGES = [
@@ -332,7 +333,7 @@ const SmartContentEditor = ({ module, onSave, onClose }: { module: AIClassModule
 
 export const TutorDashboard = () => {
     const { currentUser, curriculum, allocations, briefs, addBrief, updateBrief, submissions, updateSubmission, users, semesterPlans, semesterStartDate, holidays, attendance, markAttendance, lessonPlans, addLessonPlan, updateLessonPlan, moduleSyllabi, rooms, addAiModule, aiModules, updateAiModule, deleteAiModule, saveModuleSyllabus } = useApp();
-    const [activeTab, setActiveTab] = useState<'assigned_modules' | 'grading' | 'attendance' | 'weekly_feedback'>('assigned_modules');
+    const [activeTab, setActiveTab] = useState<'assigned_modules' | 'grading' | 'attendance' | 'weekly_feedback' | 'watchlist'>('assigned_modules');
 
     // --- Module Management State ---
     const [selectedModule, setSelectedModule] = useState<Module | null>(null);
@@ -697,9 +698,11 @@ export const TutorDashboard = () => {
                 <button onClick={() => setActiveTab('grading')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'grading' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Grading Stack</button>
                 <button onClick={() => setActiveTab('attendance')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'attendance' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Attendance</button>
                 <button onClick={() => setActiveTab('weekly_feedback')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'weekly_feedback' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Weekly Feedback</button>
+                <button onClick={() => setActiveTab('watchlist')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'watchlist' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Watchlist</button>
             </div>
 
             {activeTab === 'weekly_feedback' && <WeeklyFeedback title="Weekly Module Feedback" />}
+            {activeTab === 'watchlist' && <AttendanceWatchlist scope="my-modules" title="Attendance Watchlist" />}
 
             {/* Content Area */}
             {activeTab === 'assigned_modules' && !selectedModule && (

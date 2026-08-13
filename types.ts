@@ -452,3 +452,52 @@ export interface RvjAssessment {
   auditedByVp?: boolean;
   auditedByVpAt?: number;
 }
+
+// --- ATTENDANCE EARLY WARNING & INTERVENTION (KRA/KPI Phase 2) ---
+// IMPORTANT: the thresholds behind AttendanceWarningLevel (see ATTENDANCE_THRESHOLDS in
+// data.ts) are ICAT-internal early-warning levels used to trigger watchlists and recovery
+// plans. They are NOT university/statutory attendance-eligibility rules — do not present
+// them as such in any UI copy.
+export type AttendanceWarningLevel = 'On Track' | 'Early Warning' | 'Critical';
+
+export type AttendanceEscalationStatus = 'None' | 'Early Warning' | 'Critical - Recovery Plan Active' | 'Escalated to VP' | 'Resolved';
+
+export interface AttendanceActionPlan {
+  id: string;
+  studentId: string;
+  batch: string;
+  currentAttendancePercent: number;         // snapshot at time of plan creation/update
+  trend: 'Improving' | 'Declining' | 'Stable' | 'Insufficient Data';
+  reasonForAbsence: string;
+  academicImpact: string;
+  interventionTaken: string;
+  studentCommitment: string;
+  recoveryPlan: string;
+  followUpDate: string;                     // ISO date
+  // The effectiveness measure the framework actually cares about — filled in at/after
+  // followUpDate. Before -> intervention -> after, not just "an intervention was logged".
+  attendanceAfterIntervention?: number;
+  escalationStatus: AttendanceEscalationStatus;
+  createdAt: number;
+  createdBy: string;                        // staffId
+  updatedAt: number;
+}
+
+// Deliberate institutional principle: when a WHOLE BATCH's attendance in one module
+// declines together, that is a signal to investigate the module/teaching, not a signal
+// of individual student indiscipline. Kept as its own alert type so it is never conflated
+// with a single student's AttendanceActionPlan.
+export interface SystemicAttendanceAlert {
+  id: string;
+  moduleCode: string;
+  batch: string;
+  recentAveragePercent: number;
+  priorAveragePercent: number;
+  declinePoints: number;
+  possibleCauses: string[];                 // subset of SYSTEMIC_ATTENDANCE_CAUSES (data.ts)
+  investigationNotes: string;
+  status: 'Open' | 'Investigating' | 'Resolved';
+  flaggedAt: number;
+  flaggedBy: string;                        // staffId
+  resolvedAt?: number;
+}

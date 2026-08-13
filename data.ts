@@ -1,4 +1,4 @@
-import { User, Module, Role } from './types';
+import { User, Module, Role, AttendanceWarningLevel } from './types';
 
 export const LIKERT_QUESTIONS = [
     "The instructor explained the concepts clearly.",
@@ -62,6 +62,37 @@ export const RVJ_DIMENSIONS: { key: string; label: string }[] = [
     { key: 'designDecisionRationale', label: 'Design-Decision Rationale' },
     { key: 'targetAudienceRelationship', label: 'Target-Audience Relationship' },
     { key: 'evolutionOfFinalDesign', label: 'Evolution of Final Design' },
+];
+
+// ICAT-internal early-warning thresholds — NOT university/statutory attendance-eligibility
+// rules. Falling below EARLY_WARNING puts a student on the watchlist; falling below
+// CRITICAL requires a documented intervention + written recovery plan AND triggers formal
+// escalation to the Vice Principal (both happen at the same threshold crossing).
+export const ATTENDANCE_THRESHOLDS = {
+    EARLY_WARNING: 85,
+    CRITICAL: 75,
+};
+
+export const getAttendanceWarningLevel = (percent: number): AttendanceWarningLevel => {
+    if (percent < ATTENDANCE_THRESHOLDS.CRITICAL) return 'Critical';
+    if (percent < ATTENDANCE_THRESHOLDS.EARLY_WARNING) return 'Early Warning';
+    return 'On Track';
+};
+
+// A whole-batch attendance drop of this many percentage points (comparing the earlier vs.
+// later half of a module's recorded sessions) is flagged as a SystemicAttendanceAlert for
+// investigation — deliberately not attributed to individual students.
+export const SYSTEMIC_DECLINE_THRESHOLD_POINTS = 10;
+
+export const SYSTEMIC_ATTENDANCE_CAUSES = [
+    'Teaching approach',
+    'Brief clarity',
+    'Workload',
+    'Timetable',
+    'Engagement',
+    'Classroom environment',
+    'Module difficulty',
+    'Other',
 ];
 
 export const normalizeProgram = (p: string) => p ? p.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '') : '';

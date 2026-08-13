@@ -6,6 +6,7 @@ import { Users, ChevronDown, ChevronRight, BookOpen, Mail, Eye, LayoutGrid, Pale
 import { getHodDepartments, normalizeProgram, getLocalDateString, RUBRIC_GRADE_LEVELS } from './data';
 import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from './geminiService';
 import { WeeklyFeedback } from './WeeklyFeedback';
+import { AttendanceWatchlist } from './AttendanceWatchlist';
 
 // Fallback color generator
 const getFallbackColors = (code: string, type: string) => {
@@ -53,7 +54,7 @@ const safeDeepCopy = <T,>(obj: T): T => {
 
 export const HodDashboard = () => {
   const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching' | 'attendance'>('overview');
   const [expandedPrograms, setExpandedPrograms] = useState<string[]>([]);
   const [expandedYears, setExpandedYears] = useState<string[]>([]);
   const [trackingModule, setTrackingModule] = useState<Module | null>(null);
@@ -378,7 +379,7 @@ export const HodDashboard = () => {
                 <p className="text-sm text-gray-500 mt-1">Managing allocations and assignments for {currentSemesterType} Semester.</p>
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg flex-wrap gap-1">
-                {['overview', 'briefs', 'planner', 'timetable', 'teaching'].map(tab => (
+                {['overview', 'briefs', 'planner', 'timetable', 'teaching', 'attendance'].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} capitalize`}>{tab}</button>
                 ))}
             </div>
@@ -389,6 +390,10 @@ export const HodDashboard = () => {
             same standard, no exemption. */}
         {activeTab === 'teaching' && (
             <WeeklyFeedback title="As Module Tutor — Weekly Feedback" />
+        )}
+
+        {activeTab === 'attendance' && (
+            <AttendanceWatchlist scope="department" title="Department Attendance Watchlist" />
         )}
 
         {activeTab === 'overview' && (

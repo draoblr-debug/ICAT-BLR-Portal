@@ -1,5 +1,5 @@
 
-import { SurveyResponse, Module, User, TutorAllocation, SemesterPlanEntry, LessonPlan, AIClassModule, Role, Holiday, LeaderboardEntry, AttendanceRecord, Submission, AssignmentBrief } from './types';
+import { SurveyResponse, Module, User, TutorAllocation, SemesterPlanEntry, LessonPlan, AIClassModule, Role, Holiday, LeaderboardEntry, AttendanceRecord, Submission, AssignmentBrief, ModuleFeedbackSession } from './types';
 import { normalizeProgram, getHodDepartments, LIKERT_QUESTIONS } from './data';
 
 // Simulates server-side delay for better UX flow
@@ -352,4 +352,64 @@ export const calculateLessonTracking = async (
         
         return { module, tutorName: tutor?.name || 'Unassigned', totalSessions, sessionsChunked, chunkProgress, contentProgress, contentReadyChunks, totalActivities, statusLabel, statusColor, contentStatusLabel, contentStatusColor };
     }).sort((a, b) => a.chunkProgress - b.chunkProgress);
+};
+
+// --- WEEKLY MODULE FEEDBACK COMPLIANCE (KRA/KPI Phase 1) ---
+
+export interface FeedbackComplianceEntry {
+    id: string;              // staffId or moduleCode
+    label: string;           // display name
+    totalSessions: number;
+    sessionsConducted: number;
+    sessionsDocumented: number;  // conducted AND documentationComplete
+    emailsSent: number;          // conducted AND emailSent
+    conductedPercent: number;    // sessionsConducted / totalSessions
+    documentedPercent: number;   // sessionsDocumented / sessionsConducted (of the ones actually held)
+    emailedPercent: number;      // emailsSent / sessionsConducted
+}
+
+export const calculateFeedbackCompliance = async (
+    sessions: ModuleFeedbackSession[],
+    users: User[],
+    curriculum: Module[]
+): Promise<{ byTutor: FeedbackComplianceEntry[]; byModule: FeedbackComplianceEntry[] }> => {
+    await simulateNetworkDelay();
+
+    const summarize = (keyFn: (s: ModuleFeedbackSession) => string, labelFor: (key: string) => string): FeedbackComplianceEntry[] => {
+        const groups = new Map<string, ModuleFeedbackSession[]>();
+        sessions.forEach(s => {
+            const key = keyFn(s);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(s);
+        });
+
+        return Array.from(groups.entries()).map(([key, group]) => {
+            const totalSessions = group.length;
+            const sessionsConducted = group.filter(s => s.conducted).length;
+            const sessionsDocumented = group.filter(s => s.conducted && s.documentationComplete).length;
+            const emailsSent = group.filter(s => s.conducted && s.emailSent).length;
+            return {
+                id: key,
+                label: labelFor(key),
+                totalSessions,
+                sessionsConducted,
+                sessionsDocumented,
+                emailsSent,
+                conductedPercent: totalSessions > 0 ? Math.round((sessionsConducted / totalSessions) * 100) : 0,
+                documentedPercent: sessionsConducted > 0 ? Math.round((sessionsDocumented / sessionsConducted) * 100) : 0,
+                emailedPercent: sessionsConducted > 0 ? Math.round((emailsSent / sessionsConducted) * 100) : 0,
+            };
+        }).sort((a, b) => a.conductedPercent - b.conductedPercent);
+    };
+
+    const byTutor = summarize(
+        s => s.staffId,
+        (id) => users.find(u => u.id === id)?.name || id
+    );
+    const byModule = summarize(
+        s => s.moduleCode,
+        (code) => curriculum.find(m => m.code === code)?.title || code
+    );
+
+    return { byTutor, byModule };
 };

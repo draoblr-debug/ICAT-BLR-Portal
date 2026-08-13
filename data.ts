@@ -23,6 +23,47 @@ export const CAMPUS_LIKERT_QUESTIONS = [
 
 export const CAMPUS_FEEDBACK_CODE = 'GENERAL_CAMPUS_FEEDBACK';
 
+// Grade vocabulary shared by RubricLevel, FeedbackRubricScore and RvjAssessment so a
+// student's weekly rubric score and their RVJ score always read on the same scale.
+export const RUBRIC_GRADE_LEVELS = ['Excellent', 'Very Good', 'Good', 'Average', 'Poor'];
+
+// The 14 points every weekly module feedback session (Module Tutor or HOD teaching
+// their own module) must review. Surfaced as a checklist in WeeklyFeedback.tsx and
+// stored per-session on ModuleFeedbackSession.checklist, keyed by id.
+export const SESSION_CHECKLIST_ITEMS: { id: string; label: string }[] = [
+    { id: 'briefProgress', label: 'Current brief progress' },
+    { id: 'taskMilestones', label: 'Daily/hourly task milestones' },
+    { id: 'learningOutcomes', label: 'Learning-outcome achievement' },
+    { id: 'rvjDevelopment', label: 'RVJ development' },
+    { id: 'masterPractitioner', label: 'Master-practitioner research' },
+    { id: 'designThinking', label: 'Design-thinking process' },
+    { id: 'ideation', label: 'Multiple solutions / ideation' },
+    { id: 'experimentation', label: 'Experimentation' },
+    { id: 'designEvolution', label: 'Design evolution' },
+    { id: 'previousFeedbackImplemented', label: 'Previous feedback implemented' },
+    { id: 'areasForImprovement', label: 'Areas for improvement' },
+    { id: 'studentsFallingBehind', label: 'Students falling behind' },
+    { id: 'interventionNeeded', label: 'Students needing intervention' },
+    { id: 'nextActionExpected', label: 'Next action expected' },
+];
+
+// The 13 RVJ quality dimensions, in AppContext.tsx's RvjAssessment.dimensions key order.
+export const RVJ_DIMENSIONS: { key: string; label: string }[] = [
+    { key: 'researchEvidence', label: 'Research Evidence' },
+    { key: 'theoreticalDeconstruction', label: 'Theoretical Deconstruction' },
+    { key: 'masterPractitionerAnalysis', label: 'Master-Practitioner Analysis' },
+    { key: 'designThinking', label: 'Design Thinking' },
+    { key: 'ideation', label: 'Ideation' },
+    { key: 'multipleSolutions', label: 'Multiple Solutions' },
+    { key: 'experimentation', label: 'Experimentation' },
+    { key: 'evaluation', label: 'Evaluation' },
+    { key: 'iteration', label: 'Iteration' },
+    { key: 'feedbackIncorporation', label: 'Feedback Incorporation' },
+    { key: 'designDecisionRationale', label: 'Design-Decision Rationale' },
+    { key: 'targetAudienceRelationship', label: 'Target-Audience Relationship' },
+    { key: 'evolutionOfFinalDesign', label: 'Evolution of Final Design' },
+];
+
 export const normalizeProgram = (p: string) => p ? p.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '') : '';
 
 // Helper to get YYYY-MM-DD string in LOCAL TIME (fixing UTC/IST offset issues)

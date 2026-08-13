@@ -98,7 +98,7 @@ export interface AssignmentBrief {
   weeks: number;
   startDate?: string;
   learningOutcomes: string[];
-  weeklySchedule: { weekNumber: number; topic: string; description: string }[];
+  weeklySchedule: { weekNumber: number; topic: string; description: string; rubric?: RubricCriteria[] }[];
   finalDeliverableRequirements: string[];
   deliverables: Deliverable[];
   moduleDescriptor?: string;
@@ -352,3 +352,103 @@ export interface ModuleSyllabus {
 
 // --- LEARNING STYLE TYPES ---
 export type LearningStyleKey = 'Visual' | 'Auditory' | 'ReadWrite' | 'Kinesthetic';
+
+// --- WEEKLY MODULE FEEDBACK (KRA/KPI Phase 1) ---
+// Institutional rule: every module gets its OWN dedicated 60-minute weekly feedback
+// session, for both Module Tutors and HODs teaching their own modules. Never a
+// combined session covering several modules.
+
+export interface ModuleFeedbackSession {
+  id: string;
+  moduleCode: string;
+  batch: string;            // e.g. "BVA ANM IV"
+  staffId: string;          // tutor OR hod — both use this field
+  scheduledDay: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday';
+  scheduledTime: string;    // "16:00-17:00"
+  weekNumber: number;
+  conducted: boolean;
+  conductedAt?: number;
+  documentationComplete: boolean;
+  // Session-level review checklist — see SESSION_CHECKLIST_ITEMS in data.ts for the
+  // canonical 14 points. Keyed by checklist item id.
+  checklist: Record<string, boolean>;
+  emailSent: boolean;       // manual confirmation — dispatch is not automated, see WeeklyFeedback.tsx
+  emailSentAt?: number;
+  notes?: string;
+}
+
+// Score for one weekly-milestone rubric criterion (AssignmentBrief.weeklySchedule[].rubric).
+// criteriaId/criteria are snapshotted at scoring time so historical records stay readable
+// even if a tutor edits the brief's rubric text later.
+export interface FeedbackRubricScore {
+  criteriaId: string;
+  criteria: string;
+  grade: string;   // one of that criterion's RubricLevel.grade values (e.g. 'Excellent'..'Poor')
+  notes?: string;
+}
+
+export interface FeedbackActionPoint {
+  id: string;
+  description: string;
+  deadline: string;   // ISO date
+  completed: boolean;
+  completedAt?: number;
+}
+
+export interface FeedbackRecord {   // one per student, per module, per week
+  id: string;
+  sessionId: string;
+  studentId: string;
+  moduleCode: string;
+  batch: string;
+  weekNumber: number;
+  currentBriefStage: string;
+  learningOutcomeAddressed: string;
+  // Scored against the SAME rubric attached to that week's milestone in the brief
+  // (AssignmentBrief.weeklySchedule[weekNumber].rubric). Empty if that week has no rubric yet.
+  rubricScores: FeedbackRubricScore[];
+  feedbackGiven: string;
+  areasForImprovement: string;
+  designDecisionsDiscussed: string;
+  rvjObservations: string;
+  actionPoints: FeedbackActionPoint[];
+  deadline: string;              // ISO date — earliest outstanding action point, for quick sorting/display
+  interventionRequired: boolean;
+  feedbackEmailSent: boolean;
+  feedbackEmailDate?: string;    // ISO date
+  markedAt: number;
+}
+
+// Reflective Visual Journal — per-student, per-module quality assessment.
+// Graded on the same Excellent/Very Good/Good/Average/Poor scale as RubricLevel,
+// so it reads consistently alongside weekly rubric scores. Auditable by HOD and VP
+// via the auditedBy* flags rather than a separate audit log.
+export interface RvjAssessment {
+  id: string;
+  studentId: string;
+  moduleCode: string;
+  batch: string;
+  weekNumber: number;
+  assessedBy: string;   // staffId
+  assessedAt: number;
+  dimensions: {
+    researchEvidence: string;
+    theoreticalDeconstruction: string;
+    masterPractitionerAnalysis: string;
+    designThinking: string;
+    ideation: string;
+    multipleSolutions: string;
+    experimentation: string;
+    evaluation: string;
+    iteration: string;
+    feedbackIncorporation: string;
+    designDecisionRationale: string;
+    targetAudienceRelationship: string;
+    evolutionOfFinalDesign: string;
+  };
+  overallNotes: string;
+  auditedByHod?: boolean;
+  auditedByHodAt?: number;
+  auditedByVp?: boolean;
+  auditedByVpAt?: number;
+}

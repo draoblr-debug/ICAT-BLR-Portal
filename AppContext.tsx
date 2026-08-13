@@ -1,9 +1,10 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-    User, Module, SurveyResponse, Role, TutorAllocation, 
-    SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord, 
-    Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry 
+import {
+    User, Module, SurveyResponse, Role, TutorAllocation,
+    SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord,
+    Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry,
+    ModuleFeedbackSession, FeedbackRecord, RvjAssessment
 } from './types';
 import { parseCurriculum, parseUsers, parseRooms } from './data';
 import { db } from './firebase';
@@ -90,6 +91,9 @@ interface AppContextType {
     lessonPlans: LessonPlan[];
     moduleSyllabi: ModuleSyllabus[];
     leaderboard: LeaderboardEntry[];
+    feedbackSessions: ModuleFeedbackSession[];
+    feedbackRecords: FeedbackRecord[];
+    rvjAssessments: RvjAssessment[];
     semesterConfig: SemesterConfig | null;
     currentSemesterType: 'Odd' | 'Even';
     semesterStartDate: string;
@@ -127,6 +131,12 @@ interface AppContextType {
     updateLessonPlan: (plan: LessonPlan) => void;
     saveModuleSyllabus: (syllabus: ModuleSyllabus) => void;
     runGamificationEngine: () => Promise<void>;
+    addFeedbackSession: (session: ModuleFeedbackSession) => void;
+    updateFeedbackSession: (session: ModuleFeedbackSession) => void;
+    addFeedbackRecord: (record: FeedbackRecord) => void;
+    updateFeedbackRecord: (record: FeedbackRecord) => void;
+    addRvjAssessment: (assessment: RvjAssessment) => void;
+    updateRvjAssessment: (assessment: RvjAssessment) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -151,7 +161,10 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [customEvents, setCustomEvents] = useState<CustomEvent[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
-    
+    const [feedbackSessions, setFeedbackSessions] = useState<ModuleFeedbackSession[]>([]);
+    const [feedbackRecords, setFeedbackRecords] = useState<FeedbackRecord[]>([]);
+    const [rvjAssessments, setRvjAssessments] = useState<RvjAssessment[]>([]);
+
     const [aiModules, setAiModules] = useState<AIClassModule[]>(() => {
         try {
             const saved = localStorage.getItem('local_ai_modules');
@@ -253,6 +266,9 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
                         { name: 'lesson_plans', setter: setLessonPlans },
                         { name: 'ai_modules', setter: setAiModules },
                         { name: 'module_syllabi', setter: setModuleSyllabi },
+                        { name: 'module_feedback_sessions', setter: setFeedbackSessions },
+                        { name: 'feedback_records', setter: setFeedbackRecords },
+                        { name: 'rvj_assessments', setter: setRvjAssessments },
                         { name: 'users', setter: (firestoreUsers: any[]) => {
                             const cleanedUsers = deepClean(firestoreUsers);
                             setUsers(prev => {
@@ -504,6 +520,13 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
         saveToFirestore('module_syllabi', syllabus.id, syllabus);
     };
 
+    const addFeedbackSession = (session: ModuleFeedbackSession) => { setFeedbackSessions(prev => [...prev, session]); saveToFirestore('module_feedback_sessions', session.id, session); };
+    const updateFeedbackSession = (session: ModuleFeedbackSession) => { setFeedbackSessions(prev => prev.map(s => s.id === session.id ? session : s)); saveToFirestore('module_feedback_sessions', session.id, session); };
+    const addFeedbackRecord = (record: FeedbackRecord) => { setFeedbackRecords(prev => [...prev, record]); saveToFirestore('feedback_records', record.id, record); };
+    const updateFeedbackRecord = (record: FeedbackRecord) => { setFeedbackRecords(prev => prev.map(r => r.id === record.id ? record : r)); saveToFirestore('feedback_records', record.id, record); };
+    const addRvjAssessment = (assessment: RvjAssessment) => { setRvjAssessments(prev => [...prev, assessment]); saveToFirestore('rvj_assessments', assessment.id, assessment); };
+    const updateRvjAssessment = (assessment: RvjAssessment) => { setRvjAssessments(prev => prev.map(a => a.id === assessment.id ? assessment : a)); saveToFirestore('rvj_assessments', assessment.id, assessment); };
+
     const runGamificationEngine = async () => {
         // Trigger Server-Side Logic Simulation
         const calculated = await calculateGamificationLeaderboard(
@@ -516,15 +539,18 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     return (
         <AppContext.Provider value={{
             currentUser, users, curriculum, surveys, allocations, semesterPlans,
-            briefs, submissions, attendance, holidays, customEvents, rooms, aiModules, lessonPlans, moduleSyllabi, 
+            briefs, submissions, attendance, holidays, customEvents, rooms, aiModules, lessonPlans, moduleSyllabi,
             leaderboard, semesterConfig,
+            feedbackSessions, feedbackRecords, rvjAssessments,
             currentSemesterType, semesterStartDate, semesterEndDate, isOfflineMode, activeRole,
             setActiveRole, login, logout, submitSurvey, assignTutor, toggleSemesterPlan,
             clearSemesterPlan, addCustomEvent, deleteCustomEvent, addBrief, updateBrief,
             addSubmission, updateSubmission, markAttendance, addUser, updateUserRole,
             updateUserProfile, deleteUser, updateSemesterConfig, addHoliday, removeHoliday,
             addRoom, updateRoom, deleteRoom, addAiModule, updateAiModule, deleteAiModule,
-            addLessonPlan, updateLessonPlan, saveModuleSyllabus, runGamificationEngine
+            addLessonPlan, updateLessonPlan, saveModuleSyllabus, runGamificationEngine,
+            addFeedbackSession, updateFeedbackSession, addFeedbackRecord, updateFeedbackRecord,
+            addRvjAssessment, updateRvjAssessment
         }}>
             {children}
         </AppContext.Provider>

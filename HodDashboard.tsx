@@ -3,8 +3,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from './AppContext';
 import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable } from './types';
 import { Users, ChevronDown, ChevronRight, BookOpen, Mail, Eye, LayoutGrid, Palette, Calculator, Trash2, Clock, Calendar, CheckCircle, XCircle, ArrowLeft, ArrowRight, Plus, Trash, FileText, Save, Edit, MapPin, BrainCircuit, Loader2, List, Layers, Send, BookCopy, Sparkles, X, SaveAll, Image as ImageIcon, Upload, Filter, Monitor } from 'lucide-react';
-import { getHodDepartments, normalizeProgram, getLocalDateString } from './data';
+import { getHodDepartments, normalizeProgram, getLocalDateString, RUBRIC_GRADE_LEVELS } from './data';
 import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from './geminiService';
+import { WeeklyFeedback } from './WeeklyFeedback';
 
 // Fallback color generator
 const getFallbackColors = (code: string, type: string) => {
@@ -52,7 +53,7 @@ const safeDeepCopy = <T,>(obj: T): T => {
 
 export const HodDashboard = () => {
   const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching'>('overview');
   const [expandedPrograms, setExpandedPrograms] = useState<string[]>([]);
   const [expandedYears, setExpandedYears] = useState<string[]>([]);
   const [trackingModule, setTrackingModule] = useState<Module | null>(null);
@@ -62,7 +63,8 @@ export const HodDashboard = () => {
   const [editingBrief, setEditingBrief] = useState<Partial<AssignmentBrief>>({});
   const [briefEditorTab, setBriefEditorTab] = useState<'general' | 'schedule' | 'rubric' | 'preview'>('general');
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
-  const [selectedRubricDeliverableId, setSelectedRubricDeliverableId] = useState<string>(''); 
+  const [selectedRubricDeliverableId, setSelectedRubricDeliverableId] = useState<string>('');
+  const [expandedRubricWeek, setExpandedRubricWeek] = useState<number | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
 
   // Selectors for Brief Modal
@@ -300,6 +302,60 @@ export const HodDashboard = () => {
       setEditingBrief({ ...editingBrief, deliverables: newDeliverables });
   };
 
+  // Weekly-milestone rubric editing (Phase 1 KRA/KPI: briefs establish weekly milestones
+  // WITH a rubric, so the weekly feedback form can score students against the same rubric).
+  const updateWeekCriteria = (weekIdx: number, criteriaId: string, field: string, value: any) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = [...(newSchedule[weekIdx].rubric || [])];
+      const critIdx = rubric.findIndex(r => r.id === criteriaId);
+      if (critIdx === -1) return;
+      rubric[critIdx] = { ...rubric[critIdx], [field]: value };
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const updateWeekLevel = (weekIdx: number, criteriaId: string, levelIdx: number, value: string) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = [...(newSchedule[weekIdx].rubric || [])];
+      const critIdx = rubric.findIndex(r => r.id === criteriaId);
+      if (critIdx === -1) return;
+      const levels = [...rubric[critIdx].levels];
+      levels[levelIdx] = { ...levels[levelIdx], description: value };
+      rubric[critIdx] = { ...rubric[critIdx], levels };
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const applyWeekRubricTemplate = (weekIdx: number, templateName: string) => {
+      const template = RUBRIC_TEMPLATES[templateName];
+      if (!template) return;
+      const cloned = safeDeepCopy(template);
+      (cloned as any[]).forEach((r: any) => r.id = `wk-crit-${Date.now()}-${Math.random()}`);
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric: cloned as any };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const addWeekCriterion = (weekIdx: number) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = [...(newSchedule[weekIdx].rubric || [])];
+      rubric.push({
+          id: `wk-crit-${Date.now()}`,
+          criteria: 'New Criterion',
+          weightage: 0,
+          levels: RUBRIC_GRADE_LEVELS.map(grade => ({ grade, description: '' })),
+      });
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const removeWeekCriterion = (weekIdx: number, criteriaId: string) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = (newSchedule[weekIdx].rubric || []).filter(r => r.id !== criteriaId);
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
   const currentDeliverable = useMemo(() => { return (editingBrief.deliverables || []).find(d => d.id === selectedRubricDeliverableId); }, [editingBrief.deliverables, selectedRubricDeliverableId]);
   const toggleProgram = (prog: string) => { setExpandedPrograms(prev => prev.includes(prog) ? prev.filter(p => p !== prog) : [...prev, prog]); };
   const toggleYear = (progYearKey: string) => { setExpandedYears(prev => prev.includes(progYearKey) ? prev.filter(y => y !== progYearKey) : [...prev, progYearKey]); };
@@ -322,11 +378,18 @@ export const HodDashboard = () => {
                 <p className="text-sm text-gray-500 mt-1">Managing allocations and assignments for {currentSemesterType} Semester.</p>
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg flex-wrap gap-1">
-                {['overview', 'briefs', 'planner', 'timetable'].map(tab => (
+                {['overview', 'briefs', 'planner', 'timetable', 'teaching'].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} capitalize`}>{tab}</button>
                 ))}
             </div>
         </div>
+
+        {/* Modules the HOD personally teaches (allocations where they are the tutor) get the
+            same dedicated weekly feedback session as any Module Tutor — HODs are held to the
+            same standard, no exemption. */}
+        {activeTab === 'teaching' && (
+            <WeeklyFeedback title="As Module Tutor — Weekly Feedback" />
+        )}
 
         {activeTab === 'overview' && (
             <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -851,7 +914,89 @@ export const HodDashboard = () => {
                                         </div>
                                      )}
                                      {briefEditorTab==='schedule' && (
-                                        <div className="space-y-6">{(editingBrief.weeklySchedule || []).map((week, idx) => (<div key={idx} className="bg-white p-4 rounded border border-gray-200"><div className="flex justify-between mb-2"><span className="text-xs font-bold text-gray-500 uppercase">Week {week.weekNumber}</span></div><input type="text" className="block w-full border-gray-300 rounded-md p-2 text-sm font-bold mb-2" value={week.topic} onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx].topic = e.target.value; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}/><textarea className="block w-full border-gray-300 rounded-md p-2 text-sm" value={week.description} onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx].description = e.target.value; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}/></div>))}</div>
+                                        <div className="space-y-4">
+                                            {(editingBrief.weeklySchedule || []).map((week, idx) => {
+                                                const isRubricOpen = expandedRubricWeek === week.weekNumber;
+                                                const rubricCount = (week.rubric || []).length;
+                                                return (
+                                                    <div key={idx} className="bg-white p-4 rounded border border-gray-200">
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <span className="text-xs font-bold text-gray-500 uppercase">Week {week.weekNumber}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExpandedRubricWeek(isRubricOpen ? null : week.weekNumber)}
+                                                                className={`text-[10px] font-bold px-2 py-1 rounded-full border flex items-center gap-1 ${rubricCount > 0 ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
+                                                            >
+                                                                <Layers size={10} /> Milestone Rubric{rubricCount > 0 ? ` (${rubricCount})` : ''}
+                                                            </button>
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            className="block w-full border-gray-300 rounded-md p-2 text-sm font-bold mb-2"
+                                                            value={week.topic}
+                                                            onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx] = { ...newSched[idx], topic: e.target.value }; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}
+                                                        />
+                                                        <textarea
+                                                            className="block w-full border-gray-300 rounded-md p-2 text-sm"
+                                                            value={week.description}
+                                                            onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx] = { ...newSched[idx], description: e.target.value }; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}
+                                                        />
+
+                                                        {isRubricOpen && (
+                                                            <div className="mt-4 pt-4 border-t border-dashed border-gray-200 space-y-3">
+                                                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                                                    <span className="text-[10px] font-bold text-gray-500 uppercase">This week's milestone rubric — used by the weekly feedback form</span>
+                                                                    <div className="flex gap-1 flex-wrap">
+                                                                        {Object.keys(RUBRIC_TEMPLATES).map(tmpl => (
+                                                                            <button type="button" key={tmpl} onClick={() => applyWeekRubricTemplate(idx, tmpl)} className="text-[10px] bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded text-gray-700">{tmpl}</button>
+                                                                        ))}
+                                                                        <button type="button" onClick={() => addWeekCriterion(idx)} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded text-indigo-700 flex items-center gap-1"><Plus size={10}/> Criterion</button>
+                                                                    </div>
+                                                                </div>
+                                                                {(week.rubric || []).length === 0 ? (
+                                                                    <div className="text-xs text-gray-400 italic">No rubric yet — students won't be scored for this week's milestone until one is added.</div>
+                                                                ) : (
+                                                                    (week.rubric || []).map((criteria) => (
+                                                                        <div key={criteria.id} className="border rounded-lg p-3 bg-gray-50">
+                                                                            <div className="flex justify-between mb-2">
+                                                                                <input
+                                                                                    className="font-bold text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:outline-none w-2/3"
+                                                                                    value={criteria.criteria}
+                                                                                    onChange={(e) => updateWeekCriteria(idx, criteria.id, 'criteria', e.target.value)}
+                                                                                />
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-xs text-gray-500">Weight:</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        className="w-12 text-xs border rounded p-1 text-center"
+                                                                                        value={criteria.weightage}
+                                                                                        onChange={(e) => updateWeekCriteria(idx, criteria.id, 'weightage', parseInt(e.target.value))}
+                                                                                    />
+                                                                                    <span className="text-xs text-gray-500">%</span>
+                                                                                    <button type="button" onClick={() => removeWeekCriterion(idx, criteria.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={12}/></button>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="grid grid-cols-5 gap-1 mt-2">
+                                                                                {criteria.levels.map((level, lIdx) => (
+                                                                                    <div key={lIdx} className="text-[10px] p-1 bg-white border rounded">
+                                                                                        <div className="font-bold text-indigo-700">{level.grade}</div>
+                                                                                        <textarea
+                                                                                            className="w-full h-16 border-none resize-none text-[9px] text-gray-600 focus:ring-0 bg-transparent mt-1"
+                                                                                            value={level.description}
+                                                                                            onChange={(e) => updateWeekLevel(idx, criteria.id, lIdx, e.target.value)}
+                                                                                        />
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                      )}
                                      {briefEditorTab === 'rubric' && (
                                         <div className="space-y-6">

@@ -64,6 +64,32 @@ export const RVJ_DIMENSIONS: { key: string; label: string }[] = [
     { key: 'evolutionOfFinalDesign', label: 'Evolution of Final Design' },
 ];
 
+// Bi-monthly cycle survey (Phase 3) — a NEW, separate 13-category question set, kept apart
+// from LIKERT_QUESTIONS (10 items) so existing SurveyResponse.detailedRatings arrays from
+// before cycles existed are never misread against the wrong question set. Same 1-5 scale
+// and detailedRatings[] plumbing as the legacy survey, just a different question list.
+export interface CycleFeedbackCategory { key: string; label: string; question: string; }
+
+export const CYCLE_FEEDBACK_CATEGORIES: CycleFeedbackCategory[] = [
+    { key: 'moduleClarity', label: 'Module Clarity', question: 'The module structure and expectations were clearly communicated.' },
+    { key: 'briefQuality', label: 'Brief Quality', question: 'The assignment briefs were well-written and easy to follow.' },
+    { key: 'learningOutcomes', label: 'Learning Outcomes', question: 'The learning outcomes for this module were clearly achieved.' },
+    { key: 'teachingQuality', label: 'Teaching Quality', question: 'The quality of teaching in this module met my expectations.' },
+    { key: 'rvj', label: 'RVJ', question: 'My Reflective Visual Journal was reviewed and discussed meaningfully.' },
+    { key: 'feedback', label: 'Feedback', question: 'I received timely, useful feedback on my work.' },
+    { key: 'designThinking', label: 'Design Thinking', question: 'The module strengthened my design-thinking process.' },
+    { key: 'masterPractitioners', label: 'Master Practitioners', question: 'Master-practitioner references and examples were used effectively.' },
+    { key: 'industryExposure', label: 'Industry Exposure', question: 'I had meaningful exposure to industry practice this cycle.' },
+    { key: 'workload', label: 'Workload', question: 'The workload for this module was reasonable and well-paced.' },
+    { key: 'engagement', label: 'Engagement', question: 'I felt engaged and motivated during sessions.' },
+    { key: 'confidence', label: 'Confidence', question: 'I feel more confident in this subject area after this cycle.' },
+    { key: 'overallSatisfaction', label: 'Overall Satisfaction', question: 'Overall, I am satisfied with this module.' },
+];
+
+// Flat question text, parallel to CYCLE_FEEDBACK_CATEGORIES, so it plugs directly into the
+// same detailedRatings[] infrastructure LIKERT_QUESTIONS already uses.
+export const CYCLE_FEEDBACK_QUESTIONS = CYCLE_FEEDBACK_CATEGORIES.map(c => c.question);
+
 // ICAT-internal early-warning thresholds — NOT university/statutory attendance-eligibility
 // rules. Falling below EARLY_WARNING puts a student on the watchlist; falling below
 // CRITICAL requires a documented intervention + written recovery plan AND triggers formal

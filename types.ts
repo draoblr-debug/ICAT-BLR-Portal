@@ -1,11 +1,17 @@
 
+// Note: the DRAO role already exists in this codebase as Role.EducationManager (see
+// getHodDepartments in data.ts — 'BLR026' is commented "DRAO (Education Manager acting as
+// HOD for Foundation)" — and ManagerDashboard.tsx is that role's dashboard). A separate
+// Role.DRAO was not added on top of it to avoid two enum members representing the same
+// real position; only VicePrincipal is genuinely new here.
 export enum Role {
   Student = 'Student',
   Tutor = 'Tutor',
   HOD = 'HOD',
   EducationManager = 'Education Manager',
   StudentService = 'Student Service',
-  SystemAdministrator = 'System Administrator'
+  SystemAdministrator = 'System Administrator',
+  VicePrincipal = 'Vice Principal'
 }
 
 export interface User {
@@ -65,6 +71,10 @@ export interface SurveyResponse {
   timestamp: number;
   detailedRatings?: number[];
   semesterType?: 'Odd' | 'Even';
+  // Bi-monthly feedback cycle this response belongs to (FeedbackCycle.id), added for
+  // Phase 3. Legacy responses predating cycles have no cycleId and remain readable via
+  // semesterType exactly as before — this field is additive, not a replacement.
+  cycleId?: string;
 }
 
 export interface RubricLevel {
@@ -500,4 +510,57 @@ export interface SystemicAttendanceAlert {
   flaggedAt: number;
   flaggedBy: string;                        // staffId
   resolvedAt?: number;
+}
+
+// --- BI-MONTHLY FEEDBACK CYCLES & ACTION-POINT LOOP (KRA/KPI Phase 3) ---
+// Replaces the old single-window-per-semester model (SemesterConfig.feedbackOpenOdd/Even)
+// going forward, WITHOUT removing it — those fields are untouched and still work for any
+// code path that hasn't moved to cycles. A cycle is campus-wide: opening one opens feedback
+// for every active module, every department, every batch at once.
+export interface FeedbackCycle {
+  id: string;
+  label: string;             // e.g. "Nov–Dec 2026"
+  startDate: string;         // ISO date
+  endDate: string;           // ISO date
+  isOpen: boolean;
+  createdAt: number;
+  createdBy: string;         // staffId
+  closedAt?: number;
+}
+
+// The action loop the framework calls the critical missing piece: Feedback -> Analysis ->
+// Identify Recurring Problems -> Draft Action Points -> Assign Owner -> Set Deadline ->
+// Implement -> Verify -> Close. The VP KPI (>=90% closed within agreed timelines) is
+// computed from these records, not from satisfaction scores alone.
+export interface ActionPoint {
+  id: string;
+  cycleId: string;
+  issue: string;
+  evidenceFromFeedback: string;
+  proposedAction: string;
+  responsiblePersonId: string;
+  departmentId: string;
+  deadline: string;
+  status: 'Open' | 'In Progress' | 'Verified' | 'Closed' | 'Escalated';
+  verificationDate?: string;
+  outcome?: string;
+  createdAt: number;
+  createdBy: string;         // staffId
+  updatedAt: number;
+}
+
+// --- SHARED KPI SHAPE ---
+// Every KRA/KPI function returns actual vs. target vs. a status, never a bare number, so a
+// KPI that can't be computed from available data shows as 'No Data' instead of a fabricated
+// value. Introduced in Phase 3 for calculateActionPointClosureRate (kpiService.ts) — the
+// Phase 1/2 analytics functions predate this and return their own richer breakdown shapes
+// instead, which is intentional (those feed detail tables, not single KPI tiles).
+export interface KpiResult {
+  kpiId: string;
+  label: string;
+  actual: number;
+  target: number;
+  unit: 'percent' | 'count' | 'rating';
+  status: 'On Track' | 'At Risk' | 'Off Track' | 'No Data';
+  period: string;
 }

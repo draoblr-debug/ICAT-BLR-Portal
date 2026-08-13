@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from './AppContext';
-import { normalizeProgram, LIKERT_QUESTIONS, CAMPUS_LIKERT_QUESTIONS, CAMPUS_FEEDBACK_CODE, getLocalDateString } from './data';
+import { normalizeProgram, LIKERT_QUESTIONS, CAMPUS_LIKERT_QUESTIONS, CAMPUS_FEEDBACK_CODE, CYCLE_FEEDBACK_QUESTIONS, getLocalDateString } from './data';
 import { Module, Submission, SemesterPlanEntry, LessonPlan } from './types';
 import { 
     Send, CheckCircle, BookOpen, List, Building2, FileText, Upload, Video, 
@@ -39,7 +39,11 @@ const getGradeColor = (grade: string) => {
 };
 
 export const StudentDashboard = () => {
-  const { currentUser, curriculum, currentSemesterType, surveys, submitSurvey, allocations, users, briefs, submissions, addSubmission, attendance, semesterConfig, semesterPlans, rooms, semesterStartDate, holidays, aiModules, lessonPlans, leaderboard } = useApp();
+  const { currentUser, curriculum, currentSemesterType, surveys, submitSurvey, allocations, users, briefs, submissions, addSubmission, attendance, semesterConfig, semesterPlans, rooms, semesterStartDate, holidays, aiModules, lessonPlans, leaderboard, feedbackCycles } = useApp();
+
+  // Bi-monthly feedback cycle (Phase 3), if the VP has opened one — takes precedence over
+  // the legacy per-semester feedbackOpenOdd/Even gate below without removing it.
+  const activeFeedbackCycle = useMemo(() => feedbackCycles.find(c => c.isOpen) || null, [feedbackCycles]);
   
   // State
   const [activeTab, setActiveTab] = useState<'modules' | 'schedule' | 'feedback'>('modules');
@@ -350,17 +354,23 @@ export const StudentDashboard = () => {
 
   // --- HANDLERS (Safe wrappers) ---
   const handleOpenModal = (type: 'Regular' | 'Elective' | 'Campus', module?: Module, category?: string) => {
-      const actualSemesterType = (selectedFeedbackSemester === 'Active') ? (semesterConfig?.activeType || currentSemesterType) : selectedFeedbackSemester;
-      const feedbackOpenOdd = (semesterConfig as any)?.feedbackOpenOdd ?? (semesterConfig?.feedbackOpen ?? false);
-      const feedbackOpenEven = (semesterConfig as any)?.feedbackOpenEven ?? (semesterConfig?.feedbackOpen ?? false);
-      const isOpen = actualSemesterType === 'Odd' ? feedbackOpenOdd : feedbackOpenEven;
-      if (!isOpen) { alert(`Feedback for ${actualSemesterType} semester is currently closed.`); return; }
+      // A bi-monthly cycle open for module/elective feedback bypasses the legacy semester
+      // gate entirely (it's campus-wide by design). Campus facilities feedback still uses
+      // the old semester-window gate — cycles are about module/teaching feedback only.
+      const cycleCoversThis = type !== 'Campus' && !!activeFeedbackCycle;
+      if (!cycleCoversThis) {
+          const actualSemesterType = (selectedFeedbackSemester === 'Active') ? (semesterConfig?.activeType || currentSemesterType) : selectedFeedbackSemester;
+          const feedbackOpenOdd = (semesterConfig as any)?.feedbackOpenOdd ?? (semesterConfig?.feedbackOpen ?? false);
+          const feedbackOpenEven = (semesterConfig as any)?.feedbackOpenEven ?? (semesterConfig?.feedbackOpen ?? false);
+          const isOpen = actualSemesterType === 'Odd' ? feedbackOpenOdd : feedbackOpenEven;
+          if (!isOpen) { alert(`Feedback for ${actualSemesterType} semester is currently closed.`); return; }
+      }
       setRatingTarget({ type, module, category });
-      const targetLikert = type === 'Campus' ? CAMPUS_LIKERT_QUESTIONS : LIKERT_QUESTIONS;
+      const targetLikert = type === 'Campus' ? CAMPUS_LIKERT_QUESTIONS : (activeFeedbackCycle ? CYCLE_FEEDBACK_QUESTIONS : LIKERT_QUESTIONS);
       const targetSubjective = type === 'Campus' ? CAMPUS_SUBJECTIVE_QUESTIONS : SUBJECTIVE_QUESTIONS;
       setLikertScores(new Array(targetLikert.length).fill(0));
       setTextAnswers(new Array(targetSubjective.length).fill(''));
-      setSelectedElectiveCode(module ? module.code : ''); 
+      setSelectedElectiveCode(module ? module.code : '');
       setIsModalOpen(true);
   };
 
@@ -375,7 +385,8 @@ export const StudentDashboard = () => {
       const questionSet = ratingTarget?.type === 'Campus' ? CAMPUS_SUBJECTIVE_QUESTIONS : SUBJECTIVE_QUESTIONS;
       const combinedFeedback = questionSet.map((q, i) => `Q: ${q}\nA: ${textAnswers[i]}`).join('\n\n');
       const semesterType = (selectedFeedbackSemester === 'Active') ? (semesterConfig?.activeType || currentSemesterType) : selectedFeedbackSemester;
-      submitSurvey({ id: Date.now().toString(), studentId: currentUser.id, moduleCode: targetModuleCode, rating: averageRating, feedback: combinedFeedback, timestamp: Date.now(), detailedRatings: likertScores, semesterType } as any);
+      const cycleId = (ratingTarget?.type !== 'Campus' && activeFeedbackCycle) ? activeFeedbackCycle.id : undefined;
+      submitSurvey({ id: Date.now().toString(), studentId: currentUser.id, moduleCode: targetModuleCode, rating: averageRating, feedback: combinedFeedback, timestamp: Date.now(), detailedRatings: likertScores, semesterType, cycleId } as any);
       setIsModalOpen(false);
   };
 
@@ -979,12 +990,17 @@ export const StudentDashboard = () => {
             <div className="fixed z-50 inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                 <div className="bg-[#1E2130] w-full max-w-2xl rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
                     <div className="p-6 border-b border-gray-700 flex justify-between items-center">
-                        <h3 className="text-xl font-bold text-white">Submit Feedback</h3>
+                        <div>
+                            <h3 className="text-xl font-bold text-white">Submit Feedback</h3>
+                            {ratingTarget?.type !== 'Campus' && activeFeedbackCycle && (
+                                <p className="text-xs text-indigo-400 mt-0.5">{activeFeedbackCycle.label} feedback cycle</p>
+                            )}
+                        </div>
                         <button onClick={() => setIsModalOpen(false)}><X className="text-gray-400 hover:text-white" /></button>
                     </div>
                     <div className="p-6 max-h-[70vh] overflow-y-auto">
                         <form onSubmit={handleSubmit} className="space-y-6">
-                            {(ratingTarget?.type === 'Campus' ? CAMPUS_LIKERT_QUESTIONS : LIKERT_QUESTIONS).map((q, i) => (
+                            {(ratingTarget?.type === 'Campus' ? CAMPUS_LIKERT_QUESTIONS : (activeFeedbackCycle ? CYCLE_FEEDBACK_QUESTIONS : LIKERT_QUESTIONS)).map((q, i) => (
                                 <div key={i} className="space-y-2">
                                     <label className="text-gray-300 text-sm font-medium">{q}</label>
                                     <div className="flex gap-2">

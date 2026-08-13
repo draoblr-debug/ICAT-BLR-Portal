@@ -5,7 +5,8 @@ import {
     SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord,
     Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry,
     ModuleFeedbackSession, FeedbackRecord, RvjAssessment,
-    AttendanceActionPlan, SystemicAttendanceAlert
+    AttendanceActionPlan, SystemicAttendanceAlert,
+    FeedbackCycle, ActionPoint
 } from './types';
 import { parseCurriculum, parseUsers, parseRooms } from './data';
 import { db } from './firebase';
@@ -97,6 +98,8 @@ interface AppContextType {
     rvjAssessments: RvjAssessment[];
     attendanceActionPlans: AttendanceActionPlan[];
     systemicAttendanceAlerts: SystemicAttendanceAlert[];
+    feedbackCycles: FeedbackCycle[];
+    actionPoints: ActionPoint[];
     semesterConfig: SemesterConfig | null;
     currentSemesterType: 'Odd' | 'Even';
     semesterStartDate: string;
@@ -144,6 +147,10 @@ interface AppContextType {
     updateAttendanceActionPlan: (plan: AttendanceActionPlan) => void;
     addSystemicAttendanceAlert: (alert: SystemicAttendanceAlert) => void;
     updateSystemicAttendanceAlert: (alert: SystemicAttendanceAlert) => void;
+    addFeedbackCycle: (cycle: FeedbackCycle) => void;
+    updateFeedbackCycle: (cycle: FeedbackCycle) => void;
+    addActionPoint: (point: ActionPoint) => void;
+    updateActionPoint: (point: ActionPoint) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -173,6 +180,8 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const [rvjAssessments, setRvjAssessments] = useState<RvjAssessment[]>([]);
     const [attendanceActionPlans, setAttendanceActionPlans] = useState<AttendanceActionPlan[]>([]);
     const [systemicAttendanceAlerts, setSystemicAttendanceAlerts] = useState<SystemicAttendanceAlert[]>([]);
+    const [feedbackCycles, setFeedbackCycles] = useState<FeedbackCycle[]>([]);
+    const [actionPoints, setActionPoints] = useState<ActionPoint[]>([]);
 
     const [aiModules, setAiModules] = useState<AIClassModule[]>(() => {
         try {
@@ -280,6 +289,8 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
                         { name: 'rvj_assessments', setter: setRvjAssessments },
                         { name: 'attendance_action_plans', setter: setAttendanceActionPlans },
                         { name: 'systemic_attendance_alerts', setter: setSystemicAttendanceAlerts },
+                        { name: 'feedback_cycles', setter: setFeedbackCycles },
+                        { name: 'action_points', setter: setActionPoints },
                         { name: 'users', setter: (firestoreUsers: any[]) => {
                             const cleanedUsers = deepClean(firestoreUsers);
                             setUsers(prev => {
@@ -541,6 +552,10 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const updateAttendanceActionPlan = (plan: AttendanceActionPlan) => { setAttendanceActionPlans(prev => prev.map(p => p.id === plan.id ? plan : p)); saveToFirestore('attendance_action_plans', plan.id, plan); };
     const addSystemicAttendanceAlert = (alert: SystemicAttendanceAlert) => { setSystemicAttendanceAlerts(prev => [...prev, alert]); saveToFirestore('systemic_attendance_alerts', alert.id, alert); };
     const updateSystemicAttendanceAlert = (alert: SystemicAttendanceAlert) => { setSystemicAttendanceAlerts(prev => prev.map(a => a.id === alert.id ? alert : a)); saveToFirestore('systemic_attendance_alerts', alert.id, alert); };
+    const addFeedbackCycle = (cycle: FeedbackCycle) => { setFeedbackCycles(prev => [...prev, cycle]); saveToFirestore('feedback_cycles', cycle.id, cycle); };
+    const updateFeedbackCycle = (cycle: FeedbackCycle) => { setFeedbackCycles(prev => prev.map(c => c.id === cycle.id ? cycle : c)); saveToFirestore('feedback_cycles', cycle.id, cycle); };
+    const addActionPoint = (point: ActionPoint) => { setActionPoints(prev => [...prev, point]); saveToFirestore('action_points', point.id, point); };
+    const updateActionPoint = (point: ActionPoint) => { setActionPoints(prev => prev.map(p => p.id === point.id ? point : p)); saveToFirestore('action_points', point.id, point); };
 
     const runGamificationEngine = async () => {
         // Trigger Server-Side Logic Simulation
@@ -558,6 +573,7 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
             leaderboard, semesterConfig,
             feedbackSessions, feedbackRecords, rvjAssessments,
             attendanceActionPlans, systemicAttendanceAlerts,
+            feedbackCycles, actionPoints,
             currentSemesterType, semesterStartDate, semesterEndDate, isOfflineMode, activeRole,
             setActiveRole, login, logout, submitSurvey, assignTutor, toggleSemesterPlan,
             clearSemesterPlan, addCustomEvent, deleteCustomEvent, addBrief, updateBrief,
@@ -568,7 +584,8 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
             addFeedbackSession, updateFeedbackSession, addFeedbackRecord, updateFeedbackRecord,
             addRvjAssessment, updateRvjAssessment,
             addAttendanceActionPlan, updateAttendanceActionPlan,
-            addSystemicAttendanceAlert, updateSystemicAttendanceAlert
+            addSystemicAttendanceAlert, updateSystemicAttendanceAlert,
+            addFeedbackCycle, updateFeedbackCycle, addActionPoint, updateActionPoint
         }}>
             {children}
         </AppContext.Provider>

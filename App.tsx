@@ -8,6 +8,7 @@ import { ManagerDashboard } from './ManagerDashboard';
 import { ServiceView } from './ServiceView';
 import { TutorDashboard } from './TutorDashboard';
 import { SystemAdminDashboard } from './SystemAdminDashboard';
+import { VicePrincipalDashboard } from './VicePrincipalDashboard';
 import { UserProfile } from './UserProfile';
 import { LiveClassSession } from './LiveClassSession';
 import { Role } from './types';
@@ -184,6 +185,9 @@ const MainContent = () => {
             break;
         case Role.SystemAdministrator:
             Content = <SystemAdminDashboard />;
+            break;
+        case Role.VicePrincipal:
+            Content = <VicePrincipalDashboard />;
             break;
         default:
             Content = <div className="text-center py-20 text-gray-500">Dashboard for {roleToRender} is under construction.</div>;

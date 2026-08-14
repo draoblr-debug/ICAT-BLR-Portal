@@ -5,8 +5,9 @@ import { normalizeProgram } from './data';
 import { calculateRollingAttendance, calculateFeedbackCompliance, StudentBatchAttendance } from './analyticsService';
 import {
     calculateCycleDetailedAnalysis, calculateCycleTrends, calculateActionPointClosureRate, CycleTrendGrouping, CycleTrendSeries,
-    calculateIndustryEngagementCoverage, calculatePlacementReadinessRate, calculateAwardPipelineStatus
+    calculateIndustryEngagementCoverage, calculatePlacementReadinessRate, calculateAwardPipelineStatus, calculateVicePrincipalKpis
 } from './kpiService';
+import { KpiGrid } from './KpiGrid';
 import {
     RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -50,14 +51,26 @@ const kpiStatusColor: Record<KpiResult['status'], string> = {
 };
 
 export const VicePrincipalDashboard = () => {
+    const appState = useApp();
     const {
         currentUser, curriculum, users, allocations, surveys, attendance, currentSemesterType,
         feedbackCycles, addFeedbackCycle, updateFeedbackCycle,
         actionPoints, addActionPoint, updateActionPoint,
         feedbackSessions, industryEngagements, placementReadiness, finalYearProjects,
-    } = useApp();
+    } = appState;
 
-    const [activeTab, setActiveTab] = useState<'overview' | 'cycles' | 'analysis' | 'actions' | 'audit'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'cycles' | 'analysis' | 'actions' | 'audit' | 'kpis'>('overview');
+    const [vpKpis, setVpKpis] = useState<KpiResult[]>([]);
+    const [isLoadingKpis, setIsLoadingKpis] = useState(false);
+
+    useEffect(() => {
+        if (activeTab !== 'kpis') return;
+        setIsLoadingKpis(true);
+        calculateVicePrincipalKpis(appState).then(result => {
+            setVpKpis(result);
+            setIsLoadingKpis(false);
+        });
+    }, [activeTab, appState]);
 
     // Cycles tab
     const [newCycleLabel, setNewCycleLabel] = useState('');
@@ -225,11 +238,22 @@ export const VicePrincipalDashboard = () => {
                     <p className="text-sm text-gray-500 mt-1">Bi-monthly feedback cycles, the action-point closure loop, campus attendance and HOD accountability.</p>
                 </div>
                 <div className="flex bg-gray-100 p-1 rounded-lg flex-wrap gap-1">
-                    {['overview', 'cycles', 'analysis', 'actions', 'audit'].map(tab => (
+                    {['overview', 'cycles', 'analysis', 'actions', 'audit', 'kpis'].map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-2 text-sm font-medium rounded-md capitalize ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{tab}</button>
                     ))}
                 </div>
             </div>
+
+            {activeTab === 'kpis' && (
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">Vice Principal KRA/KPI Scorecard</h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                        19 KPIs across attendance oversight, bi-monthly cycle completion, action-point closure, satisfaction improvement, quality audits, HOD accountability and placement oversight.
+                        The task specified these as category totals rather than 19 named items — see KPI_IMPLEMENTATION.md for the full breakdown.
+                    </p>
+                    <KpiGrid kpis={vpKpis} isLoading={isLoadingKpis} />
+                </div>
+            )}
 
             {activeTab === 'overview' && (
                 <div className="space-y-6">

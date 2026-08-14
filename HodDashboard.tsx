@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from './AppContext';
-import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable } from './types';
+import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable, KpiResult } from './types';
 import { Users, ChevronDown, ChevronRight, BookOpen, Mail, Eye, LayoutGrid, Palette, Calculator, Trash2, Clock, Calendar, CheckCircle, XCircle, ArrowLeft, ArrowRight, Plus, Trash, FileText, Save, Edit, MapPin, BrainCircuit, Loader2, List, Layers, Send, BookCopy, Sparkles, X, SaveAll, Image as ImageIcon, Upload, Filter, Monitor } from 'lucide-react';
 import { getHodDepartments, normalizeProgram, getLocalDateString, RUBRIC_GRADE_LEVELS } from './data';
 import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from './geminiService';
@@ -9,6 +9,8 @@ import { WeeklyFeedback } from './WeeklyFeedback';
 import { AttendanceWatchlist } from './AttendanceWatchlist';
 import { IndustryAlumniPanel } from './IndustryAlumniPanel';
 import { FinalYearTrackPanel } from './FinalYearTrackPanel';
+import { KpiGrid } from './KpiGrid';
+import { calculateHodOnlyKpis, calculateModuleTutorKpis } from './kpiService';
 
 // Fallback color generator
 const getFallbackColors = (code: string, type: string) => {
@@ -55,8 +57,25 @@ const safeDeepCopy = <T,>(obj: T): T => {
 };
 
 export const HodDashboard = () => {
-  const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching' | 'attendance' | 'industry' | 'final-year'>('overview');
+  const appState = useApp();
+  const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = appState;
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching' | 'attendance' | 'industry' | 'final-year' | 'kpis'>('overview');
+  const [hodKpis, setHodKpis] = useState<KpiResult[]>([]);
+  const [hodAsTutorKpis, setHodAsTutorKpis] = useState<KpiResult[]>([]);
+  const [isLoadingKpis, setIsLoadingKpis] = useState(false);
+
+  useEffect(() => {
+      if (activeTab !== 'kpis' || !currentUser) return;
+      setIsLoadingKpis(true);
+      Promise.all([
+          calculateHodOnlyKpis(currentUser.id, appState),
+          calculateModuleTutorKpis(currentUser.id, appState),
+      ]).then(([hodResult, tutorResult]) => {
+          setHodKpis(hodResult);
+          setHodAsTutorKpis(tutorResult);
+          setIsLoadingKpis(false);
+      });
+  }, [activeTab, currentUser, appState]);
   const [expandedPrograms, setExpandedPrograms] = useState<string[]>([]);
   const [expandedYears, setExpandedYears] = useState<string[]>([]);
   const [trackingModule, setTrackingModule] = useState<Module | null>(null);
@@ -391,7 +410,7 @@ export const HodDashboard = () => {
                 <p className="text-sm text-gray-500 mt-1">Managing allocations and assignments for {currentSemesterType} Semester.</p>
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg flex-wrap gap-1">
-                {['overview', 'briefs', 'planner', 'timetable', 'teaching', 'attendance', 'industry', 'final-year'].map(tab => (
+                {['overview', 'briefs', 'planner', 'timetable', 'teaching', 'attendance', 'industry', 'final-year', 'kpis'].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} capitalize`}>{tab}</button>
                 ))}
             </div>
@@ -414,6 +433,23 @@ export const HodDashboard = () => {
 
         {activeTab === 'final-year' && (
             <FinalYearTrackPanel students={allDepartmentStudents} title="Final-Year Track" />
+        )}
+
+        {/* Kept visually distinct per the task's explicit instruction — "As HOD" and "As
+            Module Tutor" are two separate KPI sets and must not overwrite each other. */}
+        {activeTab === 'kpis' && (
+            <div className="space-y-6">
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">As HOD — Department KRA/KPI Scorecard</h3>
+                    <p className="text-sm text-gray-500 mb-4">11 HOD-specific KPIs (departmental quality, RVJ audit, industry/alumni, awards, placement, etc.), computed for your department.</p>
+                    <KpiGrid kpis={hodKpis} isLoading={isLoadingKpis} />
+                </div>
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">As Module Tutor — Scorecard</h3>
+                    <p className="text-sm text-gray-500 mb-4">The same 16 Module Tutor KPIs every tutor is held to, computed for the modules you personally teach. No exemption.</p>
+                    <KpiGrid kpis={hodAsTutorKpis} isLoading={isLoadingKpis} />
+                </div>
+            </div>
         )}
 
         {activeTab === 'overview' && (

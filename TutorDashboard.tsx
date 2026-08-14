@@ -1,13 +1,15 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from './AppContext';
-import { AssignmentBrief, Module, Role, Submission, AttendanceRecord, LessonPlan, LessonChunk, LessonActivityType, AIClassModule, AISlide, AIQuizQuestion, ModuleContext, ModuleType } from './types';
+import { AssignmentBrief, Module, Role, Submission, AttendanceRecord, LessonPlan, LessonChunk, LessonActivityType, AIClassModule, AISlide, AIQuizQuestion, ModuleContext, ModuleType, KpiResult } from './types';
 import { getLocalDateString, normalizeProgram, RUBRIC_GRADE_LEVELS } from './data';
 import { generateBriefContent, generateGradingFeedback, generateLessonPlan, generateChunkSmartContent } from './geminiService';
 import { Plus, CheckCircle, BrainCircuit, FileText, Clock, BookOpen, ArrowLeft, X, Check, ArrowRight, Loader2, Upload, Save, Send, ChevronDown, ChevronUp, Sliders, Trash2, LayoutList, Timer, Sparkles, PlayCircle, Edit, RefreshCw, Eye, EyeOff, Info, BookCopy, XCircle, Image as ImageIcon } from 'lucide-react';
 import { LiveClassSession } from './LiveClassSession';
 import { WeeklyFeedback } from './WeeklyFeedback';
 import { AttendanceWatchlist } from './AttendanceWatchlist';
+import { KpiGrid } from './KpiGrid';
+import { calculateModuleTutorKpis } from './kpiService';
 
 // Grading Constants
 const GRADE_RANGES = [
@@ -332,8 +334,20 @@ const SmartContentEditor = ({ module, onSave, onClose }: { module: AIClassModule
 };
 
 export const TutorDashboard = () => {
-    const { currentUser, curriculum, allocations, briefs, addBrief, updateBrief, submissions, updateSubmission, users, semesterPlans, semesterStartDate, holidays, attendance, markAttendance, lessonPlans, addLessonPlan, updateLessonPlan, moduleSyllabi, rooms, addAiModule, aiModules, updateAiModule, deleteAiModule, saveModuleSyllabus } = useApp();
-    const [activeTab, setActiveTab] = useState<'assigned_modules' | 'grading' | 'attendance' | 'weekly_feedback' | 'watchlist'>('assigned_modules');
+    const appState = useApp();
+    const { currentUser, curriculum, allocations, briefs, addBrief, updateBrief, submissions, updateSubmission, users, semesterPlans, semesterStartDate, holidays, attendance, markAttendance, lessonPlans, addLessonPlan, updateLessonPlan, moduleSyllabi, rooms, addAiModule, aiModules, updateAiModule, deleteAiModule, saveModuleSyllabus } = appState;
+    const [activeTab, setActiveTab] = useState<'assigned_modules' | 'grading' | 'attendance' | 'weekly_feedback' | 'watchlist' | 'kpis'>('assigned_modules');
+    const [tutorKpis, setTutorKpis] = useState<KpiResult[]>([]);
+    const [isLoadingKpis, setIsLoadingKpis] = useState(false);
+
+    useEffect(() => {
+        if (activeTab !== 'kpis' || !currentUser) return;
+        setIsLoadingKpis(true);
+        calculateModuleTutorKpis(currentUser.id, appState).then(result => {
+            setTutorKpis(result);
+            setIsLoadingKpis(false);
+        });
+    }, [activeTab, currentUser, appState]);
 
     // --- Module Management State ---
     const [selectedModule, setSelectedModule] = useState<Module | null>(null);
@@ -699,7 +713,16 @@ export const TutorDashboard = () => {
                 <button onClick={() => setActiveTab('attendance')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'attendance' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Attendance</button>
                 <button onClick={() => setActiveTab('weekly_feedback')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'weekly_feedback' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Weekly Feedback</button>
                 <button onClick={() => setActiveTab('watchlist')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'watchlist' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Watchlist</button>
+                <button onClick={() => setActiveTab('kpis')} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === 'kpis' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>KPIs</button>
             </div>
+
+            {activeTab === 'kpis' && (
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">My KRA/KPI Scorecard</h3>
+                    <p className="text-sm text-gray-500 mb-4">16 Module Tutor KPIs, computed live from your modules, briefs, sessions and attendance.</p>
+                    <KpiGrid kpis={tutorKpis} isLoading={isLoadingKpis} />
+                </div>
+            )}
 
             {activeTab === 'weekly_feedback' && <WeeklyFeedback title="Weekly Module Feedback" />}
             {activeTab === 'watchlist' && <AttendanceWatchlist scope="my-modules" title="Attendance Watchlist" />}

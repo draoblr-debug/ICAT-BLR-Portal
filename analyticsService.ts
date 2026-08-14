@@ -222,7 +222,8 @@ export const calculateDepartmentPerformance = async (
     curriculum: Module[],
     currentSemesterType: 'Odd' | 'Even',
     semesterPlans: SemesterPlanEntry[],
-    allocations: TutorAllocation[]
+    allocations: TutorAllocation[],
+    briefs: AssignmentBrief[] = []
 ) => {
     await simulateNetworkDelay();
     
@@ -258,6 +259,21 @@ export const calculateDepartmentPerformance = async (
         const allocatedTutors = deptModules.filter(m => allocations.some(a => a.moduleCode === m.code && a.tutorId)).length;
         const allocatedRooms = deptModules.filter(m => allocations.some(a => a.moduleCode === m.code && a.roomId)).length;
 
+        // Academic-quality fields (Phase 5) — extending this function rather than duplicating
+        // it, per the task's explicit instruction. Everything above this comment measures
+        // planning/allocation completeness (a module has a plan, a tutor, a room); this
+        // measures whether the module's brief is actually fit to teach from: outcomes stated
+        // and every weekly milestone filled in. A Published brief with no outcomes or with
+        // empty weekly slots is structurally incomplete regardless of who's assigned to it.
+        const modulesWithQualityBrief = deptModules.filter(m => {
+            const brief = briefs.find(b => b.moduleCode === m.code && b.status === 'Published');
+            if (!brief) return false;
+            if (!brief.learningOutcomes || brief.learningOutcomes.length === 0) return false;
+            if (!brief.weeklySchedule || brief.weeklySchedule.length === 0) return false;
+            return brief.weeklySchedule.every(w => w.topic?.trim() && w.description?.trim());
+        }).length;
+        const briefQualityProgress = totalModules > 0 ? Math.round((modulesWithQualityBrief / totalModules) * 100) : 0;
+
         return {
             hod,
             departments: displayDept,
@@ -268,7 +284,9 @@ export const calculateDepartmentPerformance = async (
             allocatedTutors,
             tutorAllocProgress: totalModules > 0 ? Math.round((allocatedTutors / totalModules) * 100) : 0,
             allocatedRooms,
-            roomAllocProgress: totalModules > 0 ? Math.round((allocatedRooms / totalModules) * 100) : 0
+            roomAllocProgress: totalModules > 0 ? Math.round((allocatedRooms / totalModules) * 100) : 0,
+            modulesWithQualityBrief,
+            briefQualityProgress
         };
     }).sort((a, b) => a.planningProgress - b.planningProgress);
 };

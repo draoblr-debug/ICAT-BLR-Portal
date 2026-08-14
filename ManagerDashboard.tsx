@@ -70,7 +70,7 @@ export const ManagerDashboard = () => {
       setModulePerformance(modPerf);
 
       // Department Performance
-      const deptPerf = await calculateDepartmentPerformance(users, curriculum, currentSemesterType, semesterPlans, allocations);
+      const deptPerf = await calculateDepartmentPerformance(users, curriculum, currentSemesterType, semesterPlans, allocations, briefs);
       setDepartmentPerformance(deptPerf);
 
       // Lesson Tracking

@@ -4,7 +4,7 @@ import {
     Module, Role, ModuleFeedbackSession, FeedbackRecord, FeedbackRubricScore,
     FeedbackActionPoint, RvjAssessment
 } from './types';
-import { normalizeProgram, SESSION_CHECKLIST_ITEMS, RUBRIC_GRADE_LEVELS, RVJ_DIMENSIONS } from './data';
+import { normalizeProgram, RUBRIC_GRADE_LEVELS, RVJ_DIMENSIONS } from './data';
 import {
     Calendar, CheckCircle, Circle, ChevronDown, ChevronRight, Clock, Mail, Users, X,
     AlertTriangle, Plus, Trash2, Save, ClipboardList, BookOpen
@@ -82,7 +82,6 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
             weekNumber: currentWeek,
             conducted: false,
             documentationComplete: false,
-            checklist: {},
             emailSent: false,
         };
         addFeedbackSession(session);
@@ -95,10 +94,6 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
             conducted: !session.conducted,
             conductedAt: !session.conducted ? Date.now() : undefined,
         });
-    };
-
-    const toggleChecklistItem = (session: ModuleFeedbackSession, itemId: string) => {
-        updateFeedbackSession({ ...session, checklist: { ...session.checklist, [itemId]: !session.checklist[itemId] } });
     };
 
     const saveNotes = (session: ModuleFeedbackSession) => {
@@ -349,28 +344,8 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                             </div>
                                         </div>
 
-                                        {/* 14-point session review checklist */}
-                                        <div>
-                                            <div className="text-xs font-bold text-gray-500 uppercase mb-2">Session Review Checklist</div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                {SESSION_CHECKLIST_ITEMS.map(item => (
-                                                    <label key={item.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded px-3 py-2 cursor-pointer hover:bg-gray-100">
-                                                        <input type="checkbox" checked={!!session.checklist[item.id]} onChange={() => toggleChecklistItem(session, item.id)} className="rounded text-indigo-600" />
-                                                        {item.label}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <div className="text-xs font-bold text-gray-500 uppercase mb-1">Session Notes</div>
-                                            <div className="flex gap-2">
-                                                <textarea className="flex-1 border rounded p-2 text-sm" rows={2} value={notesDraft} onChange={e => setNotesDraft(e.target.value)} placeholder="General notes for this session..." />
-                                                <button onClick={() => saveNotes(session)} className="text-xs font-bold px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 h-fit flex items-center gap-1"><Save size={12} /> Save</button>
-                                            </div>
-                                        </div>
-
-                                        {/* Per-student roster */}
+                                        {/* Per-student roster — the substance of the session: rubric score,
+                                            qualitative feedback and action points, logged per student below. */}
                                         <div>
                                             <div className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><Users size={12} /> Students ({cohort.length})</div>
                                             {cohort.length === 0 ? (
@@ -379,16 +354,29 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                                 <ul className="divide-y divide-gray-100 border rounded-lg">
                                                     {cohort.map(student => {
                                                         const record = feedbackRecords.find(r => r.sessionId === session.id && r.studentId === student.id);
+                                                        const openActionPoints = (record?.actionPoints || []).filter(a => !a.completed).length;
                                                         return (
-                                                            <li key={student.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
-                                                                <div className="flex items-center gap-2 text-sm text-gray-800">
-                                                                    {record ? <CheckCircle size={14} className="text-green-500" /> : <Circle size={14} className="text-gray-300" />}
-                                                                    {student.name}
-                                                                    {record?.interventionRequired && <AlertTriangle size={14} className="text-red-500" title="Intervention required" />}
+                                                            <li key={student.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 text-sm text-gray-800">
+                                                                        {record ? <CheckCircle size={14} className="text-green-500 shrink-0" /> : <Circle size={14} className="text-gray-300 shrink-0" />}
+                                                                        <span className="font-medium">{student.name}</span>
+                                                                        {record?.interventionRequired && <AlertTriangle size={14} className="text-red-500 shrink-0" title="Intervention required" />}
+                                                                    </div>
+                                                                    {record ? (
+                                                                        <div className="mt-1 ml-6 text-xs text-gray-500 space-y-0.5">
+                                                                            {record.feedbackGiven && <p className="line-clamp-1"><span className="text-gray-400">Feedback:</span> {record.feedbackGiven}</p>}
+                                                                            {openActionPoints > 0 && (
+                                                                                <p className="text-amber-600 font-medium">{openActionPoints} open action point{openActionPoints === 1 ? '' : 's'} for next week</p>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="mt-1 ml-6 text-xs text-gray-400 italic">Not logged yet this week.</p>
+                                                                    )}
                                                                 </div>
                                                                 <button
                                                                     onClick={() => openStudentModal(session, student.id, module.code, session.batch)}
-                                                                    className="text-xs font-bold text-indigo-600 hover:underline"
+                                                                    className="text-xs font-bold text-indigo-600 hover:underline shrink-0 ml-3"
                                                                 >
                                                                     {record ? 'View / Edit' : 'Log Feedback'}
                                                                 </button>
@@ -397,6 +385,14 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                                     })}
                                                 </ul>
                                             )}
+                                        </div>
+
+                                        <div>
+                                            <div className="text-xs font-bold text-gray-500 uppercase mb-1">Session Notes</div>
+                                            <div className="flex gap-2">
+                                                <textarea className="flex-1 border rounded p-2 text-sm" rows={2} value={notesDraft} onChange={e => setNotesDraft(e.target.value)} placeholder="General notes for this session..." />
+                                                <button onClick={() => saveNotes(session)} className="text-xs font-bold px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 h-fit flex items-center gap-1"><Save size={12} /> Save</button>
+                                            </div>
                                         </div>
                                     </>
                                 )}

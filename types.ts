@@ -379,9 +379,6 @@ export interface ModuleFeedbackSession {
   conducted: boolean;
   conductedAt?: number;
   documentationComplete: boolean;
-  // Session-level review checklist — see SESSION_CHECKLIST_ITEMS in data.ts for the
-  // canonical 14 points. Keyed by checklist item id.
-  checklist: Record<string, boolean>;
   emailSent: boolean;       // manual confirmation — dispatch is not automated, see WeeklyFeedback.tsx
   emailSentAt?: number;
   notes?: string;

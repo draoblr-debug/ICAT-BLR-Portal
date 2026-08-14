@@ -27,26 +27,6 @@ export const CAMPUS_FEEDBACK_CODE = 'GENERAL_CAMPUS_FEEDBACK';
 // student's weekly rubric score and their RVJ score always read on the same scale.
 export const RUBRIC_GRADE_LEVELS = ['Excellent', 'Very Good', 'Good', 'Average', 'Poor'];
 
-// The 14 points every weekly module feedback session (Module Tutor or HOD teaching
-// their own module) must review. Surfaced as a checklist in WeeklyFeedback.tsx and
-// stored per-session on ModuleFeedbackSession.checklist, keyed by id.
-export const SESSION_CHECKLIST_ITEMS: { id: string; label: string }[] = [
-    { id: 'briefProgress', label: 'Current brief progress' },
-    { id: 'taskMilestones', label: 'Daily/hourly task milestones' },
-    { id: 'learningOutcomes', label: 'Learning-outcome achievement' },
-    { id: 'rvjDevelopment', label: 'RVJ development' },
-    { id: 'masterPractitioner', label: 'Master-practitioner research' },
-    { id: 'designThinking', label: 'Design-thinking process' },
-    { id: 'ideation', label: 'Multiple solutions / ideation' },
-    { id: 'experimentation', label: 'Experimentation' },
-    { id: 'designEvolution', label: 'Design evolution' },
-    { id: 'previousFeedbackImplemented', label: 'Previous feedback implemented' },
-    { id: 'areasForImprovement', label: 'Areas for improvement' },
-    { id: 'studentsFallingBehind', label: 'Students falling behind' },
-    { id: 'interventionNeeded', label: 'Students needing intervention' },
-    { id: 'nextActionExpected', label: 'Next action expected' },
-];
-
 // The 13 RVJ quality dimensions, in AppContext.tsx's RvjAssessment.dimensions key order.
 export const RVJ_DIMENSIONS: { key: string; label: string }[] = [
     { key: 'researchEvidence', label: 'Research Evidence' },

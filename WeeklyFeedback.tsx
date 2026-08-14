@@ -257,10 +257,10 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
 
     return (
         <div className="space-y-4">
-            <div className="bg-white shadow rounded-lg p-6">
+            <div className="bg-white shadow rounded-lg p-4 sm:p-6">
                 <div className="flex justify-between items-start flex-wrap gap-2">
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><ClipboardList size={18} className="text-indigo-600" /> {title}</h3>
+                    <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><ClipboardList size={18} className="text-indigo-600 shrink-0" /> {title}</h3>
                         <p className="text-sm text-gray-500 mt-1">Week {currentWeek} — one dedicated 60-minute session per module. {myModules.length} module{myModules.length === 1 ? '' : 's'} this semester.</p>
                     </div>
                     <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">Email dispatch is manual — confirm after sending, it is not sent automatically.</span>
@@ -281,16 +281,16 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                     <div key={module.code} className="bg-white shadow rounded-lg overflow-hidden">
                         <button
                             onClick={() => { setExpandedModuleCode(isExpanded ? null : module.code); setNotesDraft(session?.notes || ''); }}
-                            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 text-left"
+                            className="w-full px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-2 hover:bg-gray-50 text-left"
                         >
-                            <div className="flex items-center gap-3">
-                                {isExpanded ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
-                                <div>
-                                    <div className="font-bold text-gray-900">{module.title}</div>
-                                    <div className="text-xs text-gray-500">{module.code} • {batchLabel(module)}</div>
+                            <div className="flex items-center gap-3 min-w-0">
+                                {isExpanded ? <ChevronDown size={18} className="text-gray-400 shrink-0" /> : <ChevronRight size={18} className="text-gray-400 shrink-0" />}
+                                <div className="min-w-0">
+                                    <div className="font-bold text-gray-900 truncate">{module.title}</div>
+                                    <div className="text-xs text-gray-500 truncate">{module.code} • {batchLabel(module)}</div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 {!session ? (
                                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Not scheduled</span>
                                 ) : session.conducted ? (
@@ -305,7 +305,7 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                         </button>
 
                         {isExpanded && (
-                            <div className="border-t border-gray-100 p-6 space-y-6">
+                            <div className="border-t border-gray-100 p-4 sm:p-6 space-y-6">
                                 {!session ? (
                                     <div className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4 flex flex-wrap items-end gap-3">
                                         <div>
@@ -356,11 +356,11 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                                         const record = feedbackRecords.find(r => r.sessionId === session.id && r.studentId === student.id);
                                                         const openActionPoints = (record?.actionPoints || []).filter(a => !a.completed).length;
                                                         return (
-                                                            <li key={student.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                                                                <div className="flex-1 min-w-0">
+                                                            <li key={student.id} className="px-3 sm:px-4 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 hover:bg-gray-50">
+                                                                <div className="flex-1 min-w-0 basis-full sm:basis-auto">
                                                                     <div className="flex items-center gap-2 text-sm text-gray-800">
                                                                         {record ? <CheckCircle size={14} className="text-green-500 shrink-0" /> : <Circle size={14} className="text-gray-300 shrink-0" />}
-                                                                        <span className="font-medium">{student.name}</span>
+                                                                        <span className="font-medium truncate">{student.name}</span>
                                                                         {record?.interventionRequired && <AlertTriangle size={14} className="text-red-500 shrink-0" title="Intervention required" />}
                                                                     </div>
                                                                     {record ? (
@@ -376,7 +376,7 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                                                 </div>
                                                                 <button
                                                                     onClick={() => openStudentModal(session, student.id, module.code, session.batch)}
-                                                                    className="text-xs font-bold text-indigo-600 hover:underline shrink-0 ml-3"
+                                                                    className="text-xs font-bold text-indigo-600 hover:underline shrink-0 ml-6 sm:ml-3"
                                                                 >
                                                                     {record ? 'View / Edit' : 'Log Feedback'}
                                                                 </button>
@@ -405,15 +405,15 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
             {/* Per-student Feedback / RVJ modal */}
             {studentModalId && modalStudent && recordDraft && modalSession && (
                 <div className="fixed z-50 inset-0 overflow-y-auto">
-                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                    <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={closeStudentModal}></div>
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                            <div className="bg-white px-6 pt-5 pb-4 border-b flex justify-between items-center">
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-900">{modalStudent.name}</h3>
-                                    <p className="text-xs text-gray-500">{recordDraft.moduleCode} • Week {recordDraft.weekNumber}</p>
+                        <div className="inline-block w-full align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl">
+                            <div className="bg-white px-4 sm:px-6 pt-5 pb-4 border-b flex justify-between items-center gap-2">
+                                <div className="min-w-0">
+                                    <h3 className="text-lg font-bold text-gray-900 truncate">{modalStudent.name}</h3>
+                                    <p className="text-xs text-gray-500 truncate">{recordDraft.moduleCode} • Week {recordDraft.weekNumber}</p>
                                 </div>
-                                <button onClick={closeStudentModal} className="text-gray-500 hover:text-gray-700"><X size={22} /></button>
+                                <button onClick={closeStudentModal} className="text-gray-500 hover:text-gray-700 shrink-0"><X size={22} /></button>
                             </div>
 
                             <div className="flex border-b bg-gray-50">
@@ -421,10 +421,10 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                 <button onClick={() => setStudentModalTab('rvj')} className={`flex-1 py-2.5 text-sm font-medium border-b-2 ${studentModalTab === 'rvj' ? 'border-indigo-600 text-indigo-600 bg-white' : 'border-transparent text-gray-500'}`}>RVJ Assessment</button>
                             </div>
 
-                            <div className="p-6 max-h-[65vh] overflow-y-auto space-y-5">
+                            <div className="p-4 sm:p-6 max-h-[65vh] overflow-y-auto space-y-5">
                                 {studentModalTab === 'feedback' && (
                                     <>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Current Brief Stage</label>
                                                 <input className="w-full border rounded p-2 text-sm" value={recordDraft.currentBriefStage || ''} onChange={e => setRecordDraft({ ...recordDraft, currentBriefStage: e.target.value })} />
@@ -445,8 +445,8 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                             ) : (
                                                 <div className="space-y-2">
                                                     {(recordDraft.rubricScores || []).map(score => (
-                                                        <div key={score.criteriaId} className="border rounded p-2 flex items-center justify-between gap-3">
-                                                            <span className="text-sm font-medium text-gray-800 flex-1">{score.criteria}</span>
+                                                        <div key={score.criteriaId} className="border rounded p-2 flex flex-wrap items-center justify-between gap-2">
+                                                            <span className="text-sm font-medium text-gray-800 flex-1 min-w-[10rem]">{score.criteria}</span>
                                                             <select className="border rounded p-1.5 text-xs" value={score.grade} onChange={e => updateRubricScore(score.criteriaId, 'grade', e.target.value)}>
                                                                 <option value="">Grade...</option>
                                                                 {RUBRIC_GRADE_LEVELS.map(g => <option key={g} value={g}>{g}</option>)}
@@ -457,7 +457,7 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                             )}
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Feedback Given</label>
                                                 <textarea className="w-full border rounded p-2 text-sm h-20" value={recordDraft.feedbackGiven || ''} onChange={e => setRecordDraft({ ...recordDraft, feedbackGiven: e.target.value })} />
@@ -486,11 +486,15 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                             ) : (
                                                 <div className="space-y-2">
                                                     {(recordDraft.actionPoints || []).map((ap, idx) => (
-                                                        <div key={ap.id} className="flex items-center gap-2 bg-gray-50 border rounded p-2">
-                                                            <input type="checkbox" checked={ap.completed} onChange={e => updateActionPoint(idx, 'completed', e.target.checked)} className="rounded text-indigo-600" />
-                                                            <input className="flex-1 border rounded p-1.5 text-sm" placeholder="Action required..." value={ap.description} onChange={e => updateActionPoint(idx, 'description', e.target.value)} />
-                                                            <input type="date" className="border rounded p-1.5 text-xs" value={ap.deadline} onChange={e => updateActionPoint(idx, 'deadline', e.target.value)} />
-                                                            <button onClick={() => removeActionPoint(idx)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14} /></button>
+                                                        <div key={ap.id} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-gray-50 border rounded p-2">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <input type="checkbox" checked={ap.completed} onChange={e => updateActionPoint(idx, 'completed', e.target.checked)} className="rounded text-indigo-600 shrink-0" />
+                                                                <input className="flex-1 min-w-0 border rounded p-1.5 text-sm" placeholder="Action required..." value={ap.description} onChange={e => updateActionPoint(idx, 'description', e.target.value)} />
+                                                            </div>
+                                                            <div className="flex items-center gap-2 pl-6 sm:pl-0">
+                                                                <input type="date" className="flex-1 sm:flex-none border rounded p-1.5 text-xs" value={ap.deadline} onChange={e => updateActionPoint(idx, 'deadline', e.target.value)} />
+                                                                <button onClick={() => removeActionPoint(idx)} className="text-red-500 hover:bg-red-50 p-1 rounded shrink-0"><Trash2 size={14} /></button>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -509,8 +513,8 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                         <p className="text-xs text-gray-500">Reflective Visual Journal quality assessment — same Excellent/Very Good/Good/Average/Poor scale as the milestone rubric, auditable by HOD and VP.</p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {RVJ_DIMENSIONS.map(dim => (
-                                                <div key={dim.key} className="flex items-center justify-between gap-2 border rounded p-2">
-                                                    <span className="text-sm text-gray-800">{dim.label}</span>
+                                                <div key={dim.key} className="flex flex-wrap items-center justify-between gap-2 border rounded p-2">
+                                                    <span className="text-sm text-gray-800 flex-1 min-w-[8rem]">{dim.label}</span>
                                                     <select
                                                         className="border rounded p-1.5 text-xs"
                                                         value={(rvjDraft.dimensions as any)?.[dim.key] || ''}
@@ -530,7 +534,7 @@ export const WeeklyFeedback: React.FC<WeeklyFeedbackProps> = ({ title = 'Weekly 
                                 )}
                             </div>
 
-                            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2">
+                            <div className="px-4 sm:px-6 py-4 border-t bg-gray-50 flex flex-wrap justify-end gap-2">
                                 <button onClick={closeStudentModal} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">Close</button>
                                 {studentModalTab === 'feedback' ? (
                                     <button onClick={() => { saveRecord(modalSession, modalCohortSize); closeStudentModal(); }} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold flex items-center gap-2"><Save size={14} /> Save Feedback</button>

@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
-import { AppProvider, useApp } from './context/AppContext';
-import { Login } from './components/Login';
-import { StudentDashboard } from './components/StudentDashboard';
-import { HodDashboard } from './components/HodDashboard';
-import { ManagerDashboard } from './components/ManagerDashboard';
-import { ServiceView } from './components/ServiceView';
-import { TutorDashboard } from './components/TutorDashboard';
-import { SystemAdminDashboard } from './components/SystemAdminDashboard';
-import { UserProfile } from './components/UserProfile';
-import { LiveClassSession } from './components/LiveClassSession';
+import { AppProvider, useApp } from './AppContext';
+import { Login } from './Login';
+import { StudentDashboard } from './StudentDashboard';
+import { HodDashboard } from './HodDashboard';
+import { ManagerDashboard } from './ManagerDashboard';
+import { ServiceView } from './ServiceView';
+import { TutorDashboard } from './TutorDashboard';
+import { SystemAdminDashboard } from './SystemAdminDashboard';
+import { VicePrincipalDashboard } from './VicePrincipalDashboard';
+import { UserProfile } from './UserProfile';
+import { LiveClassSession } from './LiveClassSession';
 import { Role } from './types';
 import { LogOut, Calendar, Menu, User as UserIcon } from 'lucide-react';
 
@@ -184,6 +185,9 @@ const MainContent = () => {
             break;
         case Role.SystemAdministrator:
             Content = <SystemAdminDashboard />;
+            break;
+        case Role.VicePrincipal:
+            Content = <VicePrincipalDashboard />;
             break;
         default:
             Content = <div className="text-center py-20 text-gray-500">Dashboard for {roleToRender} is under construction.</div>;

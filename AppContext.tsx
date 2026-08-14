@@ -1,13 +1,17 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-    User, Module, SurveyResponse, Role, TutorAllocation, 
-    SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord, 
-    Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry 
-} from '../types';
-import { parseCurriculum, parseUsers, parseRooms } from '../services/data';
-import { db } from '../services/firebase';
-import { calculateGamificationLeaderboard } from '../services/analyticsService';
+import {
+    User, Module, SurveyResponse, Role, TutorAllocation,
+    SemesterPlanEntry, AssignmentBrief, Submission, AttendanceRecord,
+    Holiday, CustomEvent, SemesterConfig, Room, AIClassModule, LessonPlan, ModuleSyllabus, LeaderboardEntry,
+    ModuleFeedbackSession, FeedbackRecord, RvjAssessment,
+    AttendanceActionPlan, SystemicAttendanceAlert,
+    FeedbackCycle, ActionPoint,
+    IndustryEngagement, AlumniRecord, PortfolioReview, PlacementReadinessStatus, FinalYearProject
+} from './types';
+import { parseCurriculum, parseUsers, parseRooms } from './data';
+import { db } from './firebase';
+import { calculateGamificationLeaderboard } from './analyticsService';
 import { 
     collection, doc, setDoc, updateDoc, deleteDoc, 
     onSnapshot, writeBatch 
@@ -90,6 +94,18 @@ interface AppContextType {
     lessonPlans: LessonPlan[];
     moduleSyllabi: ModuleSyllabus[];
     leaderboard: LeaderboardEntry[];
+    feedbackSessions: ModuleFeedbackSession[];
+    feedbackRecords: FeedbackRecord[];
+    rvjAssessments: RvjAssessment[];
+    attendanceActionPlans: AttendanceActionPlan[];
+    systemicAttendanceAlerts: SystemicAttendanceAlert[];
+    feedbackCycles: FeedbackCycle[];
+    actionPoints: ActionPoint[];
+    industryEngagements: IndustryEngagement[];
+    alumniRecords: AlumniRecord[];
+    portfolioReviews: PortfolioReview[];
+    placementReadiness: PlacementReadinessStatus[];
+    finalYearProjects: FinalYearProject[];
     semesterConfig: SemesterConfig | null;
     currentSemesterType: 'Odd' | 'Even';
     semesterStartDate: string;
@@ -127,6 +143,29 @@ interface AppContextType {
     updateLessonPlan: (plan: LessonPlan) => void;
     saveModuleSyllabus: (syllabus: ModuleSyllabus) => void;
     runGamificationEngine: () => Promise<void>;
+    addFeedbackSession: (session: ModuleFeedbackSession) => void;
+    updateFeedbackSession: (session: ModuleFeedbackSession) => void;
+    addFeedbackRecord: (record: FeedbackRecord) => void;
+    updateFeedbackRecord: (record: FeedbackRecord) => void;
+    addRvjAssessment: (assessment: RvjAssessment) => void;
+    updateRvjAssessment: (assessment: RvjAssessment) => void;
+    addAttendanceActionPlan: (plan: AttendanceActionPlan) => void;
+    updateAttendanceActionPlan: (plan: AttendanceActionPlan) => void;
+    addSystemicAttendanceAlert: (alert: SystemicAttendanceAlert) => void;
+    updateSystemicAttendanceAlert: (alert: SystemicAttendanceAlert) => void;
+    addFeedbackCycle: (cycle: FeedbackCycle) => void;
+    updateFeedbackCycle: (cycle: FeedbackCycle) => void;
+    addActionPoint: (point: ActionPoint) => void;
+    updateActionPoint: (point: ActionPoint) => void;
+    addIndustryEngagement: (engagement: IndustryEngagement) => void;
+    updateIndustryEngagement: (engagement: IndustryEngagement) => void;
+    addAlumniRecord: (alumnus: AlumniRecord) => void;
+    updateAlumniRecord: (alumnus: AlumniRecord) => void;
+    addPortfolioReview: (review: PortfolioReview) => void;
+    updatePortfolioReview: (review: PortfolioReview) => void;
+    savePlacementReadiness: (status: PlacementReadinessStatus) => void;
+    addFinalYearProject: (project: FinalYearProject) => void;
+    updateFinalYearProject: (project: FinalYearProject) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -151,7 +190,19 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [customEvents, setCustomEvents] = useState<CustomEvent[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
-    
+    const [feedbackSessions, setFeedbackSessions] = useState<ModuleFeedbackSession[]>([]);
+    const [feedbackRecords, setFeedbackRecords] = useState<FeedbackRecord[]>([]);
+    const [rvjAssessments, setRvjAssessments] = useState<RvjAssessment[]>([]);
+    const [attendanceActionPlans, setAttendanceActionPlans] = useState<AttendanceActionPlan[]>([]);
+    const [systemicAttendanceAlerts, setSystemicAttendanceAlerts] = useState<SystemicAttendanceAlert[]>([]);
+    const [feedbackCycles, setFeedbackCycles] = useState<FeedbackCycle[]>([]);
+    const [actionPoints, setActionPoints] = useState<ActionPoint[]>([]);
+    const [industryEngagements, setIndustryEngagements] = useState<IndustryEngagement[]>([]);
+    const [alumniRecords, setAlumniRecords] = useState<AlumniRecord[]>([]);
+    const [portfolioReviews, setPortfolioReviews] = useState<PortfolioReview[]>([]);
+    const [placementReadiness, setPlacementReadiness] = useState<PlacementReadinessStatus[]>([]);
+    const [finalYearProjects, setFinalYearProjects] = useState<FinalYearProject[]>([]);
+
     const [aiModules, setAiModules] = useState<AIClassModule[]>(() => {
         try {
             const saved = localStorage.getItem('local_ai_modules');
@@ -253,6 +304,18 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
                         { name: 'lesson_plans', setter: setLessonPlans },
                         { name: 'ai_modules', setter: setAiModules },
                         { name: 'module_syllabi', setter: setModuleSyllabi },
+                        { name: 'module_feedback_sessions', setter: setFeedbackSessions },
+                        { name: 'feedback_records', setter: setFeedbackRecords },
+                        { name: 'rvj_assessments', setter: setRvjAssessments },
+                        { name: 'attendance_action_plans', setter: setAttendanceActionPlans },
+                        { name: 'systemic_attendance_alerts', setter: setSystemicAttendanceAlerts },
+                        { name: 'feedback_cycles', setter: setFeedbackCycles },
+                        { name: 'action_points', setter: setActionPoints },
+                        { name: 'industry_engagements', setter: setIndustryEngagements },
+                        { name: 'alumni_records', setter: setAlumniRecords },
+                        { name: 'portfolio_reviews', setter: setPortfolioReviews },
+                        { name: 'placement_readiness', setter: setPlacementReadiness },
+                        { name: 'final_year_projects', setter: setFinalYearProjects },
                         { name: 'users', setter: (firestoreUsers: any[]) => {
                             const cleanedUsers = deepClean(firestoreUsers);
                             setUsers(prev => {
@@ -504,6 +567,36 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
         saveToFirestore('module_syllabi', syllabus.id, syllabus);
     };
 
+    const addFeedbackSession = (session: ModuleFeedbackSession) => { setFeedbackSessions(prev => [...prev, session]); saveToFirestore('module_feedback_sessions', session.id, session); };
+    const updateFeedbackSession = (session: ModuleFeedbackSession) => { setFeedbackSessions(prev => prev.map(s => s.id === session.id ? session : s)); saveToFirestore('module_feedback_sessions', session.id, session); };
+    const addFeedbackRecord = (record: FeedbackRecord) => { setFeedbackRecords(prev => [...prev, record]); saveToFirestore('feedback_records', record.id, record); };
+    const updateFeedbackRecord = (record: FeedbackRecord) => { setFeedbackRecords(prev => prev.map(r => r.id === record.id ? record : r)); saveToFirestore('feedback_records', record.id, record); };
+    const addRvjAssessment = (assessment: RvjAssessment) => { setRvjAssessments(prev => [...prev, assessment]); saveToFirestore('rvj_assessments', assessment.id, assessment); };
+    const updateRvjAssessment = (assessment: RvjAssessment) => { setRvjAssessments(prev => prev.map(a => a.id === assessment.id ? assessment : a)); saveToFirestore('rvj_assessments', assessment.id, assessment); };
+    const addAttendanceActionPlan = (plan: AttendanceActionPlan) => { setAttendanceActionPlans(prev => [...prev, plan]); saveToFirestore('attendance_action_plans', plan.id, plan); };
+    const updateAttendanceActionPlan = (plan: AttendanceActionPlan) => { setAttendanceActionPlans(prev => prev.map(p => p.id === plan.id ? plan : p)); saveToFirestore('attendance_action_plans', plan.id, plan); };
+    const addSystemicAttendanceAlert = (alert: SystemicAttendanceAlert) => { setSystemicAttendanceAlerts(prev => [...prev, alert]); saveToFirestore('systemic_attendance_alerts', alert.id, alert); };
+    const updateSystemicAttendanceAlert = (alert: SystemicAttendanceAlert) => { setSystemicAttendanceAlerts(prev => prev.map(a => a.id === alert.id ? alert : a)); saveToFirestore('systemic_attendance_alerts', alert.id, alert); };
+    const addFeedbackCycle = (cycle: FeedbackCycle) => { setFeedbackCycles(prev => [...prev, cycle]); saveToFirestore('feedback_cycles', cycle.id, cycle); };
+    const updateFeedbackCycle = (cycle: FeedbackCycle) => { setFeedbackCycles(prev => prev.map(c => c.id === cycle.id ? cycle : c)); saveToFirestore('feedback_cycles', cycle.id, cycle); };
+    const addActionPoint = (point: ActionPoint) => { setActionPoints(prev => [...prev, point]); saveToFirestore('action_points', point.id, point); };
+    const updateActionPoint = (point: ActionPoint) => { setActionPoints(prev => prev.map(p => p.id === point.id ? point : p)); saveToFirestore('action_points', point.id, point); };
+    const addIndustryEngagement = (engagement: IndustryEngagement) => { setIndustryEngagements(prev => [...prev, engagement]); saveToFirestore('industry_engagements', engagement.id, engagement); };
+    const updateIndustryEngagement = (engagement: IndustryEngagement) => { setIndustryEngagements(prev => prev.map(e => e.id === engagement.id ? engagement : e)); saveToFirestore('industry_engagements', engagement.id, engagement); };
+    const addAlumniRecord = (alumnus: AlumniRecord) => { setAlumniRecords(prev => [...prev, alumnus]); saveToFirestore('alumni_records', alumnus.id, alumnus); };
+    const updateAlumniRecord = (alumnus: AlumniRecord) => { setAlumniRecords(prev => prev.map(a => a.id === alumnus.id ? alumnus : a)); saveToFirestore('alumni_records', alumnus.id, alumnus); };
+    const addPortfolioReview = (review: PortfolioReview) => { setPortfolioReviews(prev => [...prev, review]); saveToFirestore('portfolio_reviews', review.id, review); };
+    const updatePortfolioReview = (review: PortfolioReview) => { setPortfolioReviews(prev => prev.map(r => r.id === review.id ? review : r)); saveToFirestore('portfolio_reviews', review.id, review); };
+    const savePlacementReadiness = (status: PlacementReadinessStatus) => {
+        setPlacementReadiness(prev => {
+            const filtered = prev.filter(p => p.studentId !== status.studentId);
+            return [...filtered, status];
+        });
+        saveToFirestore('placement_readiness', status.id, status);
+    };
+    const addFinalYearProject = (project: FinalYearProject) => { setFinalYearProjects(prev => [...prev, project]); saveToFirestore('final_year_projects', project.id, project); };
+    const updateFinalYearProject = (project: FinalYearProject) => { setFinalYearProjects(prev => prev.map(p => p.id === project.id ? project : p)); saveToFirestore('final_year_projects', project.id, project); };
+
     const runGamificationEngine = async () => {
         // Trigger Server-Side Logic Simulation
         const calculated = await calculateGamificationLeaderboard(
@@ -516,15 +609,27 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     return (
         <AppContext.Provider value={{
             currentUser, users, curriculum, surveys, allocations, semesterPlans,
-            briefs, submissions, attendance, holidays, customEvents, rooms, aiModules, lessonPlans, moduleSyllabi, 
+            briefs, submissions, attendance, holidays, customEvents, rooms, aiModules, lessonPlans, moduleSyllabi,
             leaderboard, semesterConfig,
+            feedbackSessions, feedbackRecords, rvjAssessments,
+            attendanceActionPlans, systemicAttendanceAlerts,
+            feedbackCycles, actionPoints,
+            industryEngagements, alumniRecords, portfolioReviews, placementReadiness, finalYearProjects,
             currentSemesterType, semesterStartDate, semesterEndDate, isOfflineMode, activeRole,
             setActiveRole, login, logout, submitSurvey, assignTutor, toggleSemesterPlan,
             clearSemesterPlan, addCustomEvent, deleteCustomEvent, addBrief, updateBrief,
             addSubmission, updateSubmission, markAttendance, addUser, updateUserRole,
             updateUserProfile, deleteUser, updateSemesterConfig, addHoliday, removeHoliday,
             addRoom, updateRoom, deleteRoom, addAiModule, updateAiModule, deleteAiModule,
-            addLessonPlan, updateLessonPlan, saveModuleSyllabus, runGamificationEngine
+            addLessonPlan, updateLessonPlan, saveModuleSyllabus, runGamificationEngine,
+            addFeedbackSession, updateFeedbackSession, addFeedbackRecord, updateFeedbackRecord,
+            addRvjAssessment, updateRvjAssessment,
+            addAttendanceActionPlan, updateAttendanceActionPlan,
+            addSystemicAttendanceAlert, updateSystemicAttendanceAlert,
+            addFeedbackCycle, updateFeedbackCycle, addActionPoint, updateActionPoint,
+            addIndustryEngagement, updateIndustryEngagement, addAlumniRecord, updateAlumniRecord,
+            addPortfolioReview, updatePortfolioReview, savePlacementReadiness,
+            addFinalYearProject, updateFinalYearProject
         }}>
             {children}
         </AppContext.Provider>

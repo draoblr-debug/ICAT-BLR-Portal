@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
-import { Role, User } from '../types';
-import { normalizeProgram, getLocalDateString } from '../services/data';
+import { useApp } from './AppContext';
+import { Role, User } from './types';
+import { normalizeProgram, getLocalDateString } from './data';
 import { Mail, CheckCircle, XCircle, Users, Filter, Send, AlertCircle, X, FileText, Download, FileSpreadsheet, Calendar, MapPin, RefreshCw, Trophy, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';

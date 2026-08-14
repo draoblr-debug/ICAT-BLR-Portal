@@ -1,11 +1,17 @@
 
+// Note: the DRAO role already exists in this codebase as Role.EducationManager (see
+// getHodDepartments in data.ts — 'BLR026' is commented "DRAO (Education Manager acting as
+// HOD for Foundation)" — and ManagerDashboard.tsx is that role's dashboard). A separate
+// Role.DRAO was not added on top of it to avoid two enum members representing the same
+// real position; only VicePrincipal is genuinely new here.
 export enum Role {
   Student = 'Student',
   Tutor = 'Tutor',
   HOD = 'HOD',
   EducationManager = 'Education Manager',
   StudentService = 'Student Service',
-  SystemAdministrator = 'System Administrator'
+  SystemAdministrator = 'System Administrator',
+  VicePrincipal = 'Vice Principal'
 }
 
 export interface User {
@@ -65,6 +71,10 @@ export interface SurveyResponse {
   timestamp: number;
   detailedRatings?: number[];
   semesterType?: 'Odd' | 'Even';
+  // Bi-monthly feedback cycle this response belongs to (FeedbackCycle.id), added for
+  // Phase 3. Legacy responses predating cycles have no cycleId and remain readable via
+  // semesterType exactly as before — this field is additive, not a replacement.
+  cycleId?: string;
 }
 
 export interface RubricLevel {
@@ -98,7 +108,7 @@ export interface AssignmentBrief {
   weeks: number;
   startDate?: string;
   learningOutcomes: string[];
-  weeklySchedule: { weekNumber: number; topic: string; description: string }[];
+  weeklySchedule: { weekNumber: number; topic: string; description: string; rubric?: RubricCriteria[] }[];
   finalDeliverableRequirements: string[];
   deliverables: Deliverable[];
   moduleDescriptor?: string;
@@ -352,3 +362,321 @@ export interface ModuleSyllabus {
 
 // --- LEARNING STYLE TYPES ---
 export type LearningStyleKey = 'Visual' | 'Auditory' | 'ReadWrite' | 'Kinesthetic';
+
+// --- WEEKLY MODULE FEEDBACK (KRA/KPI Phase 1) ---
+// Institutional rule: every module gets its OWN dedicated 60-minute weekly feedback
+// session, for both Module Tutors and HODs teaching their own modules. Never a
+// combined session covering several modules.
+
+export interface ModuleFeedbackSession {
+  id: string;
+  moduleCode: string;
+  batch: string;            // e.g. "BVA ANM IV"
+  staffId: string;          // tutor OR hod — both use this field
+  scheduledDay: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday';
+  scheduledTime: string;    // "16:00-17:00"
+  weekNumber: number;
+  conducted: boolean;
+  conductedAt?: number;
+  documentationComplete: boolean;
+  // Session-level review checklist — see SESSION_CHECKLIST_ITEMS in data.ts for the
+  // canonical 14 points. Keyed by checklist item id.
+  checklist: Record<string, boolean>;
+  emailSent: boolean;       // manual confirmation — dispatch is not automated, see WeeklyFeedback.tsx
+  emailSentAt?: number;
+  notes?: string;
+}
+
+// Score for one weekly-milestone rubric criterion (AssignmentBrief.weeklySchedule[].rubric).
+// criteriaId/criteria are snapshotted at scoring time so historical records stay readable
+// even if a tutor edits the brief's rubric text later.
+export interface FeedbackRubricScore {
+  criteriaId: string;
+  criteria: string;
+  grade: string;   // one of that criterion's RubricLevel.grade values (e.g. 'Excellent'..'Poor')
+  notes?: string;
+}
+
+export interface FeedbackActionPoint {
+  id: string;
+  description: string;
+  deadline: string;   // ISO date
+  completed: boolean;
+  completedAt?: number;
+}
+
+export interface FeedbackRecord {   // one per student, per module, per week
+  id: string;
+  sessionId: string;
+  studentId: string;
+  moduleCode: string;
+  batch: string;
+  weekNumber: number;
+  currentBriefStage: string;
+  learningOutcomeAddressed: string;
+  // Scored against the SAME rubric attached to that week's milestone in the brief
+  // (AssignmentBrief.weeklySchedule[weekNumber].rubric). Empty if that week has no rubric yet.
+  rubricScores: FeedbackRubricScore[];
+  feedbackGiven: string;
+  areasForImprovement: string;
+  designDecisionsDiscussed: string;
+  rvjObservations: string;
+  actionPoints: FeedbackActionPoint[];
+  deadline: string;              // ISO date — earliest outstanding action point, for quick sorting/display
+  interventionRequired: boolean;
+  feedbackEmailSent: boolean;
+  feedbackEmailDate?: string;    // ISO date
+  markedAt: number;
+}
+
+// Reflective Visual Journal — per-student, per-module quality assessment.
+// Graded on the same Excellent/Very Good/Good/Average/Poor scale as RubricLevel,
+// so it reads consistently alongside weekly rubric scores. Auditable by HOD and VP
+// via the auditedBy* flags rather than a separate audit log.
+export interface RvjAssessment {
+  id: string;
+  studentId: string;
+  moduleCode: string;
+  batch: string;
+  weekNumber: number;
+  assessedBy: string;   // staffId
+  assessedAt: number;
+  dimensions: {
+    researchEvidence: string;
+    theoreticalDeconstruction: string;
+    masterPractitionerAnalysis: string;
+    designThinking: string;
+    ideation: string;
+    multipleSolutions: string;
+    experimentation: string;
+    evaluation: string;
+    iteration: string;
+    feedbackIncorporation: string;
+    designDecisionRationale: string;
+    targetAudienceRelationship: string;
+    evolutionOfFinalDesign: string;
+  };
+  overallNotes: string;
+  auditedByHod?: boolean;
+  auditedByHodAt?: number;
+  auditedByVp?: boolean;
+  auditedByVpAt?: number;
+}
+
+// --- ATTENDANCE EARLY WARNING & INTERVENTION (KRA/KPI Phase 2) ---
+// IMPORTANT: the thresholds behind AttendanceWarningLevel (see ATTENDANCE_THRESHOLDS in
+// data.ts) are ICAT-internal early-warning levels used to trigger watchlists and recovery
+// plans. They are NOT university/statutory attendance-eligibility rules — do not present
+// them as such in any UI copy.
+export type AttendanceWarningLevel = 'On Track' | 'Early Warning' | 'Critical';
+
+export type AttendanceEscalationStatus = 'None' | 'Early Warning' | 'Critical - Recovery Plan Active' | 'Escalated to VP' | 'Resolved';
+
+export interface AttendanceActionPlan {
+  id: string;
+  studentId: string;
+  batch: string;
+  currentAttendancePercent: number;         // snapshot at time of plan creation/update
+  trend: 'Improving' | 'Declining' | 'Stable' | 'Insufficient Data';
+  reasonForAbsence: string;
+  academicImpact: string;
+  interventionTaken: string;
+  studentCommitment: string;
+  recoveryPlan: string;
+  followUpDate: string;                     // ISO date
+  // The effectiveness measure the framework actually cares about — filled in at/after
+  // followUpDate. Before -> intervention -> after, not just "an intervention was logged".
+  attendanceAfterIntervention?: number;
+  escalationStatus: AttendanceEscalationStatus;
+  createdAt: number;
+  createdBy: string;                        // staffId
+  updatedAt: number;
+}
+
+// Deliberate institutional principle: when a WHOLE BATCH's attendance in one module
+// declines together, that is a signal to investigate the module/teaching, not a signal
+// of individual student indiscipline. Kept as its own alert type so it is never conflated
+// with a single student's AttendanceActionPlan.
+export interface SystemicAttendanceAlert {
+  id: string;
+  moduleCode: string;
+  batch: string;
+  recentAveragePercent: number;
+  priorAveragePercent: number;
+  declinePoints: number;
+  possibleCauses: string[];                 // subset of SYSTEMIC_ATTENDANCE_CAUSES (data.ts)
+  investigationNotes: string;
+  status: 'Open' | 'Investigating' | 'Resolved';
+  flaggedAt: number;
+  flaggedBy: string;                        // staffId
+  resolvedAt?: number;
+}
+
+// --- BI-MONTHLY FEEDBACK CYCLES & ACTION-POINT LOOP (KRA/KPI Phase 3) ---
+// Replaces the old single-window-per-semester model (SemesterConfig.feedbackOpenOdd/Even)
+// going forward, WITHOUT removing it — those fields are untouched and still work for any
+// code path that hasn't moved to cycles. A cycle is campus-wide: opening one opens feedback
+// for every active module, every department, every batch at once.
+export interface FeedbackCycle {
+  id: string;
+  label: string;             // e.g. "Nov–Dec 2026"
+  startDate: string;         // ISO date
+  endDate: string;           // ISO date
+  isOpen: boolean;
+  createdAt: number;
+  createdBy: string;         // staffId
+  closedAt?: number;
+}
+
+// The action loop the framework calls the critical missing piece: Feedback -> Analysis ->
+// Identify Recurring Problems -> Draft Action Points -> Assign Owner -> Set Deadline ->
+// Implement -> Verify -> Close. The VP KPI (>=90% closed within agreed timelines) is
+// computed from these records, not from satisfaction scores alone.
+export interface ActionPoint {
+  id: string;
+  cycleId: string;
+  issue: string;
+  evidenceFromFeedback: string;
+  proposedAction: string;
+  responsiblePersonId: string;
+  departmentId: string;
+  deadline: string;
+  status: 'Open' | 'In Progress' | 'Verified' | 'Closed' | 'Escalated';
+  verificationDate?: string;
+  outcome?: string;
+  createdAt: number;
+  createdBy: string;         // staffId
+  updatedAt: number;
+}
+
+// --- SHARED KPI SHAPE ---
+// Every KRA/KPI function returns actual vs. target vs. a status, never a bare number, so a
+// KPI that can't be computed from available data shows as 'No Data' instead of a fabricated
+// value. Introduced in Phase 3 for calculateActionPointClosureRate (kpiService.ts) — the
+// Phase 1/2 analytics functions predate this and return their own richer breakdown shapes
+// instead, which is intentional (those feed detail tables, not single KPI tiles).
+export interface KpiResult {
+  kpiId: string;
+  label: string;
+  actual: number;
+  target: number;
+  unit: 'percent' | 'count' | 'rating';
+  status: 'On Track' | 'At Risk' | 'Off Track' | 'No Data';
+  period: string;
+}
+
+// --- INDUSTRY, ALUMNI, PORTFOLIO & PLACEMENT (KRA/KPI Phase 4) ---
+// None of this existed in any form before this phase.
+
+export type IndustryEngagementType = 'Guest Lecture' | 'Seminar' | 'Masterclass' | 'Industrial Visit' | 'Mentorship' | 'Live Project' | 'Industry Portfolio Review';
+
+// Identify -> Contact -> Engage -> Schedule -> Collaborate -> Student Exposure ->
+// Document Outcome -> Maintain Relationship. Target (>=2 per active module per semester)
+// is measured against engagements that actually reached students, not emails sent — see
+// calculateIndustryEngagementCoverage in kpiService.ts for exactly which stages count.
+export type IndustryPipelineStage = 'Identify' | 'Contact' | 'Engage' | 'Schedule' | 'Collaborate' | 'Student Exposure' | 'Document Outcome' | 'Maintain Relationship';
+
+export interface IndustryEngagement {
+  id: string;
+  moduleCode: string;
+  type: IndustryEngagementType;
+  expertName: string;
+  expertOrganization: string;
+  stage: IndustryPipelineStage;
+  scheduledDate?: string;       // ISO date
+  studentsExposedCount?: number;
+  outcomeDocumented: boolean;
+  outcomeNotes?: string;
+  relationshipNotes?: string;
+  createdAt: number;
+  createdBy: string;            // staffId
+  updatedAt: number;
+}
+
+// Institutionally-appropriate fields only, deliberately — no personal data beyond what's
+// needed to run an alumni network (no phone numbers, addresses, socials, etc.).
+export interface AlumniRecord {
+  id: string;
+  name: string;
+  graduationYear: number;
+  discipline: string;
+  currentCompany: string;
+  currentRole: string;
+  location: string;
+  areaOfExpertise: string;
+  willingToMentor: boolean;
+  willingToSpeak: boolean;
+  willingForInternships: boolean;
+  willingForPortfolioReviews: boolean;
+  willingForLiveProjects: boolean;
+  contactStatus: 'Not Contacted' | 'Contacted' | 'Engaged' | 'Unresponsive';
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Final-year portfolio review — either a faculty review or a periodic industry-expert
+// review, both recorded on the same shape so they read consistently side by side. Graded
+// on the same Excellent/Very Good/Good/Average/Poor scale as RubricLevel and RvjAssessment.
+export interface PortfolioReview {
+  id: string;
+  studentId: string;
+  reviewerType: 'Faculty' | 'Industry Expert';
+  reviewerId?: string;          // staffId, when reviewerType is 'Faculty'
+  reviewerName?: string;        // name (+ organization), when reviewerType is 'Industry Expert'
+  reviewDate: string;           // ISO date
+  dimensions: {
+    portfolioStructure: string;
+    projectSelection: string;
+    research: string;
+    designProcess: string;
+    craft: string;
+    technicalSkills: string;
+    presentation: string;
+    industryRelevance: string;
+    employability: string;
+  };
+  areasForImprovement: string;
+  createdAt: number;
+  createdBy: string;             // staffId
+}
+
+// One record per final-year student. Target: 100% Placed OR a non-empty documentedTrack —
+// see calculatePlacementReadinessRate in kpiService.ts.
+export interface PlacementReadinessStatus {
+  id: string;                    // studentId
+  studentId: string;
+  portfolioReady: boolean;
+  resumeReady: boolean;
+  skillsAssessment: string;        // Excellent..Poor
+  communicationReadiness: string;  // Excellent..Poor
+  interviewReadiness: string;      // Excellent..Poor
+  applicationsSubmitted: number;
+  interviewsAttended: number;
+  offersReceived: number;
+  placementStatus: 'Not Started' | 'Preparing' | 'Applying' | 'Interviewing' | 'Offer Received' | 'Placed' | 'Opted Out';
+  documentedTrack: string;         // required narrative plan when not yet Placed
+  lastUpdated: number;
+  updatedBy: string;               // staffId
+}
+
+// Two-level award pipeline (see calculateAwardPipelineStatus in kpiService.ts):
+// >=1 project/department submitted externally per year, and >=3 identified with genuine
+// award potential receiving extra mentoring (identifiedForExtraMentoring).
+export interface FinalYearProject {
+  id: string;
+  studentId: string;
+  batch: string;
+  title: string;
+  moduleCode?: string;
+  sdgLinkage?: string;              // SDG(s) / social-impact / NGO partner, free text
+  crossDepartmentCollaboration: boolean;
+  collaboratingDepartments?: string[];
+  entrepreneurialPotential: 'None' | 'Low' | 'Medium' | 'High';
+  awardReadiness: 'Not Assessed' | 'Not Ready' | 'Ready' | 'Submitted' | 'Shortlisted' | 'Won';
+  submittedExternally: boolean;
+  externalAwardName?: string;
+  identifiedForExtraMentoring: boolean;
+  mentoringNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+}

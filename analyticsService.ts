@@ -1,6 +1,6 @@
 
-import { SurveyResponse, Module, User, TutorAllocation, SemesterPlanEntry, LessonPlan, AIClassModule, Role, Holiday, LeaderboardEntry, AttendanceRecord, Submission, AssignmentBrief } from '../types';
-import { normalizeProgram, getHodDepartments, LIKERT_QUESTIONS } from './data';
+import { SurveyResponse, Module, User, TutorAllocation, SemesterPlanEntry, LessonPlan, AIClassModule, Role, Holiday, LeaderboardEntry, AttendanceRecord, Submission, AssignmentBrief, ModuleFeedbackSession, AttendanceWarningLevel } from './types';
+import { normalizeProgram, getHodDepartments, LIKERT_QUESTIONS, getAttendanceWarningLevel, SYSTEMIC_DECLINE_THRESHOLD_POINTS } from './data';
 
 // Simulates server-side delay for better UX flow
 const simulateNetworkDelay = async () => new Promise(resolve => setTimeout(resolve, 100));
@@ -222,7 +222,8 @@ export const calculateDepartmentPerformance = async (
     curriculum: Module[],
     currentSemesterType: 'Odd' | 'Even',
     semesterPlans: SemesterPlanEntry[],
-    allocations: TutorAllocation[]
+    allocations: TutorAllocation[],
+    briefs: AssignmentBrief[] = []
 ) => {
     await simulateNetworkDelay();
     
@@ -258,6 +259,21 @@ export const calculateDepartmentPerformance = async (
         const allocatedTutors = deptModules.filter(m => allocations.some(a => a.moduleCode === m.code && a.tutorId)).length;
         const allocatedRooms = deptModules.filter(m => allocations.some(a => a.moduleCode === m.code && a.roomId)).length;
 
+        // Academic-quality fields (Phase 5) — extending this function rather than duplicating
+        // it, per the task's explicit instruction. Everything above this comment measures
+        // planning/allocation completeness (a module has a plan, a tutor, a room); this
+        // measures whether the module's brief is actually fit to teach from: outcomes stated
+        // and every weekly milestone filled in. A Published brief with no outcomes or with
+        // empty weekly slots is structurally incomplete regardless of who's assigned to it.
+        const modulesWithQualityBrief = deptModules.filter(m => {
+            const brief = briefs.find(b => b.moduleCode === m.code && b.status === 'Published');
+            if (!brief) return false;
+            if (!brief.learningOutcomes || brief.learningOutcomes.length === 0) return false;
+            if (!brief.weeklySchedule || brief.weeklySchedule.length === 0) return false;
+            return brief.weeklySchedule.every(w => w.topic?.trim() && w.description?.trim());
+        }).length;
+        const briefQualityProgress = totalModules > 0 ? Math.round((modulesWithQualityBrief / totalModules) * 100) : 0;
+
         return {
             hod,
             departments: displayDept,
@@ -268,7 +284,9 @@ export const calculateDepartmentPerformance = async (
             allocatedTutors,
             tutorAllocProgress: totalModules > 0 ? Math.round((allocatedTutors / totalModules) * 100) : 0,
             allocatedRooms,
-            roomAllocProgress: totalModules > 0 ? Math.round((allocatedRooms / totalModules) * 100) : 0
+            roomAllocProgress: totalModules > 0 ? Math.round((allocatedRooms / totalModules) * 100) : 0,
+            modulesWithQualityBrief,
+            briefQualityProgress
         };
     }).sort((a, b) => a.planningProgress - b.planningProgress);
 };
@@ -352,4 +370,249 @@ export const calculateLessonTracking = async (
         
         return { module, tutorName: tutor?.name || 'Unassigned', totalSessions, sessionsChunked, chunkProgress, contentProgress, contentReadyChunks, totalActivities, statusLabel, statusColor, contentStatusLabel, contentStatusColor };
     }).sort((a, b) => a.chunkProgress - b.chunkProgress);
+};
+
+// --- WEEKLY MODULE FEEDBACK COMPLIANCE (KRA/KPI Phase 1) ---
+
+export interface FeedbackComplianceEntry {
+    id: string;              // staffId or moduleCode
+    label: string;           // display name
+    totalSessions: number;
+    sessionsConducted: number;
+    sessionsDocumented: number;  // conducted AND documentationComplete
+    emailsSent: number;          // conducted AND emailSent
+    conductedPercent: number;    // sessionsConducted / totalSessions
+    documentedPercent: number;   // sessionsDocumented / sessionsConducted (of the ones actually held)
+    emailedPercent: number;      // emailsSent / sessionsConducted
+}
+
+export const calculateFeedbackCompliance = async (
+    sessions: ModuleFeedbackSession[],
+    users: User[],
+    curriculum: Module[]
+): Promise<{ byTutor: FeedbackComplianceEntry[]; byModule: FeedbackComplianceEntry[] }> => {
+    await simulateNetworkDelay();
+
+    const summarize = (keyFn: (s: ModuleFeedbackSession) => string, labelFor: (key: string) => string): FeedbackComplianceEntry[] => {
+        const groups = new Map<string, ModuleFeedbackSession[]>();
+        sessions.forEach(s => {
+            const key = keyFn(s);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(s);
+        });
+
+        return Array.from(groups.entries()).map(([key, group]) => {
+            const totalSessions = group.length;
+            const sessionsConducted = group.filter(s => s.conducted).length;
+            const sessionsDocumented = group.filter(s => s.conducted && s.documentationComplete).length;
+            const emailsSent = group.filter(s => s.conducted && s.emailSent).length;
+            return {
+                id: key,
+                label: labelFor(key),
+                totalSessions,
+                sessionsConducted,
+                sessionsDocumented,
+                emailsSent,
+                conductedPercent: totalSessions > 0 ? Math.round((sessionsConducted / totalSessions) * 100) : 0,
+                documentedPercent: sessionsConducted > 0 ? Math.round((sessionsDocumented / sessionsConducted) * 100) : 0,
+                emailedPercent: sessionsConducted > 0 ? Math.round((emailsSent / sessionsConducted) * 100) : 0,
+            };
+        }).sort((a, b) => a.conductedPercent - b.conductedPercent);
+    };
+
+    const byTutor = summarize(
+        s => s.staffId,
+        (id) => users.find(u => u.id === id)?.name || id
+    );
+    const byModule = summarize(
+        s => s.moduleCode,
+        (code) => curriculum.find(m => m.code === code)?.title || code
+    );
+
+    return { byTutor, byModule };
+};
+
+// --- ATTENDANCE EARLY WARNING (KRA/KPI Phase 2) ---
+// Thresholds are ICAT-internal early-warning levels (see ATTENDANCE_THRESHOLDS in
+// data.ts), not university eligibility rules.
+
+export interface StudentModuleAttendance {
+    studentId: string;
+    studentName: string;
+    moduleCode: string;
+    batch: string;
+    totalSessions: number;
+    attendedSessions: number;
+    percent: number;
+    warningLevel: AttendanceWarningLevel;
+}
+
+export interface StudentBatchAttendance {
+    studentId: string;
+    studentName: string;
+    batch: string;
+    totalSessions: number;
+    attendedSessions: number;
+    percent: number;
+    warningLevel: AttendanceWarningLevel;
+    trend: 'Improving' | 'Declining' | 'Stable' | 'Insufficient Data';
+}
+
+export interface BatchModuleAttendance {
+    moduleCode: string;
+    batch: string;
+    averagePercent: number;
+    studentCount: number;
+}
+
+const attendanceTrend = (dated: { date: string; present: boolean }[]): StudentBatchAttendance['trend'] => {
+    if (dated.length < 4) return 'Insufficient Data';
+    const sorted = [...dated].sort((a, b) => a.date.localeCompare(b.date));
+    const mid = Math.floor(sorted.length / 2);
+    const pct = (arr: typeof sorted) => arr.length > 0 ? (arr.filter(r => r.present).length / arr.length) * 100 : 0;
+    const diff = pct(sorted.slice(mid)) - pct(sorted.slice(0, mid));
+    if (diff >= 5) return 'Improving';
+    if (diff <= -5) return 'Declining';
+    return 'Stable';
+};
+
+export const calculateRollingAttendance = async (
+    attendance: AttendanceRecord[],
+    users: User[],
+    curriculum: Module[]
+): Promise<{
+    byStudentModule: StudentModuleAttendance[];
+    byStudentBatch: StudentBatchAttendance[];
+    byBatchModule: BatchModuleAttendance[];
+}> => {
+    await simulateNetworkDelay();
+
+    const students = users.filter(u => u.role === Role.Student);
+    const recordsByModule = new Map<string, AttendanceRecord[]>();
+    attendance.forEach(a => {
+        if (!recordsByModule.has(a.moduleCode)) recordsByModule.set(a.moduleCode, []);
+        recordsByModule.get(a.moduleCode)!.push(a);
+    });
+
+    const batchLabel = (m: Module) => `${m.programTitle} • Year ${m.year}`;
+    const isEnrolled = (student: User, module: Module) => {
+        if (student.year !== module.year) return false;
+        const normStudent = normalizeProgram(student.programId);
+        const normModule = normalizeProgram(module.programTitle);
+        return normStudent.includes(normModule) || normModule.includes(normStudent);
+    };
+
+    const byStudentModule: StudentModuleAttendance[] = [];
+    students.forEach(student => {
+        recordsByModule.forEach((records, moduleCode) => {
+            const module = curriculum.find(m => m.code === moduleCode);
+            if (!module || !isEnrolled(student, module)) return;
+
+            const total = records.length;
+            const attended = records.filter(r => r.presentStudentIds.includes(student.id)).length;
+            const percent = total > 0 ? Math.round((attended / total) * 100) : 0;
+            byStudentModule.push({
+                studentId: student.id,
+                studentName: student.name,
+                moduleCode,
+                batch: batchLabel(module),
+                totalSessions: total,
+                attendedSessions: attended,
+                percent,
+                warningLevel: total > 0 ? getAttendanceWarningLevel(percent) : 'On Track',
+            });
+        });
+    });
+
+    const byStudentBatch: StudentBatchAttendance[] = students.map(student => {
+        const myRows = byStudentModule.filter(r => r.studentId === student.id);
+        const totalSessions = myRows.reduce((s, r) => s + r.totalSessions, 0);
+        const attendedSessions = myRows.reduce((s, r) => s + r.attendedSessions, 0);
+        const percent = totalSessions > 0 ? Math.round((attendedSessions / totalSessions) * 100) : 0;
+
+        const dated: { date: string; present: boolean }[] = [];
+        myRows.forEach(row => {
+            (recordsByModule.get(row.moduleCode) || []).forEach(rec => {
+                dated.push({ date: rec.date, present: rec.presentStudentIds.includes(student.id) });
+            });
+        });
+
+        return {
+            studentId: student.id,
+            studentName: student.name,
+            batch: myRows[0]?.batch || '',
+            totalSessions,
+            attendedSessions,
+            percent,
+            warningLevel: totalSessions > 0 ? getAttendanceWarningLevel(percent) : 'On Track',
+            trend: attendanceTrend(dated),
+        };
+    }).filter(r => r.totalSessions > 0);
+
+    const byBatchModule: BatchModuleAttendance[] = Array.from(recordsByModule.keys()).map(moduleCode => {
+        const module = curriculum.find(m => m.code === moduleCode);
+        if (!module) return null;
+        const rows = byStudentModule.filter(r => r.moduleCode === moduleCode && r.totalSessions > 0);
+        const averagePercent = rows.length > 0 ? Math.round(rows.reduce((s, r) => s + r.percent, 0) / rows.length) : 0;
+        return { moduleCode, batch: batchLabel(module), averagePercent, studentCount: rows.length };
+    }).filter((r): r is BatchModuleAttendance => r !== null);
+
+    return { byStudentModule, byStudentBatch, byBatchModule };
+};
+
+export interface SystemicDeclineCandidate {
+    moduleCode: string;
+    batch: string;
+    recentAveragePercent: number;
+    priorAveragePercent: number;
+    declinePoints: number;
+}
+
+// Deliberate institutional principle: a whole batch's attendance declining together in one
+// module is a signal to investigate the module/teaching (approach, brief clarity, workload,
+// timetable, engagement, classroom environment, difficulty) — never presented as student
+// indiscipline. This only detects candidates; HOD review turns one into a persisted
+// SystemicAttendanceAlert.
+export const detectSystemicAttendanceDeclines = async (
+    attendance: AttendanceRecord[],
+    curriculum: Module[]
+): Promise<SystemicDeclineCandidate[]> => {
+    await simulateNetworkDelay();
+
+    const recordsByModule = new Map<string, AttendanceRecord[]>();
+    attendance.forEach(a => {
+        if (!recordsByModule.has(a.moduleCode)) recordsByModule.set(a.moduleCode, []);
+        recordsByModule.get(a.moduleCode)!.push(a);
+    });
+
+    const avgPercent = (records: AttendanceRecord[]) => {
+        if (records.length === 0) return 0;
+        const totalPresent = records.reduce((s, r) => s + r.presentStudentIds.length, 0);
+        const totalPossible = records.reduce((s, r) => s + r.totalStudents, 0);
+        return totalPossible > 0 ? (totalPresent / totalPossible) * 100 : 0;
+    };
+
+    const results: SystemicDeclineCandidate[] = [];
+    recordsByModule.forEach((records, moduleCode) => {
+        const module = curriculum.find(m => m.code === moduleCode);
+        if (!module || records.length < 4) return;
+
+        const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+        const mid = Math.floor(sorted.length / 2);
+        const priorAvg = avgPercent(sorted.slice(0, mid));
+        const recentAvg = avgPercent(sorted.slice(mid));
+        const declinePoints = priorAvg - recentAvg;
+
+        if (declinePoints >= SYSTEMIC_DECLINE_THRESHOLD_POINTS) {
+            results.push({
+                moduleCode,
+                batch: `${module.programTitle} • Year ${module.year}`,
+                recentAveragePercent: Math.round(recentAvg),
+                priorAveragePercent: Math.round(priorAvg),
+                declinePoints: Math.round(declinePoints),
+            });
+        }
+    });
+
+    return results.sort((a, b) => b.declinePoints - a.declinePoints);
 };

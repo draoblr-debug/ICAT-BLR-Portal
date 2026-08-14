@@ -1,12 +1,12 @@
 
 // components/ManagerDashboard.tsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
-import { Role, User, AssignmentBrief } from '../types';
+import { useApp } from './AppContext';
+import { Role, User, AssignmentBrief } from './types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend } from 'recharts';
 import { Users, UserPlus, Save, CheckCircle, Clock, Calendar, Settings, FileText, Layout, Zap, ThumbsUp, ThumbsDown, BookOpen, Edit, Trash2, Plus, Filter, X, List, Layers, ArrowRight, BarChart2, RefreshCw, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { normalizeProgram, getHodDepartments, getLocalDateString } from '../services/data';
-import { calculateModulePerformance, calculateDepartmentPerformance, calculateLessonTracking, calculateDetailedAnalysis } from '../services/analyticsService';
+import { normalizeProgram, getHodDepartments, getLocalDateString } from './data';
+import { calculateModulePerformance, calculateDepartmentPerformance, calculateLessonTracking, calculateDetailedAnalysis } from './analyticsService';
 
 export const ManagerDashboard = () => {
   const {
@@ -70,7 +70,7 @@ export const ManagerDashboard = () => {
       setModulePerformance(modPerf);
 
       // Department Performance
-      const deptPerf = await calculateDepartmentPerformance(users, curriculum, currentSemesterType, semesterPlans, allocations);
+      const deptPerf = await calculateDepartmentPerformance(users, curriculum, currentSemesterType, semesterPlans, allocations, briefs);
       setDepartmentPerformance(deptPerf);
 
       // Lesson Tracking

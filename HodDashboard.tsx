@@ -1,10 +1,16 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useApp } from '../context/AppContext';
-import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable } from '../types';
+import { useApp } from './AppContext';
+import { Role, Module, SemesterPlanEntry, TimeSlot, AssignmentBrief, RubricCriteria, ModuleContext, LessonPlan, ModuleType, Deliverable, KpiResult } from './types';
 import { Users, ChevronDown, ChevronRight, BookOpen, Mail, Eye, LayoutGrid, Palette, Calculator, Trash2, Clock, Calendar, CheckCircle, XCircle, ArrowLeft, ArrowRight, Plus, Trash, FileText, Save, Edit, MapPin, BrainCircuit, Loader2, List, Layers, Send, BookCopy, Sparkles, X, SaveAll, Image as ImageIcon, Upload, Filter, Monitor } from 'lucide-react';
-import { getHodDepartments, normalizeProgram, getLocalDateString } from '../services/data';
-import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from '../services/geminiService';
+import { getHodDepartments, normalizeProgram, getLocalDateString, RUBRIC_GRADE_LEVELS } from './data';
+import { generateBriefContent, mapSyllabusToTopics, enhanceSyllabusContent } from './geminiService';
+import { WeeklyFeedback } from './WeeklyFeedback';
+import { AttendanceWatchlist } from './AttendanceWatchlist';
+import { IndustryAlumniPanel } from './IndustryAlumniPanel';
+import { FinalYearTrackPanel } from './FinalYearTrackPanel';
+import { KpiGrid } from './KpiGrid';
+import { calculateHodOnlyKpis, calculateModuleTutorKpis } from './kpiService';
 
 // Fallback color generator
 const getFallbackColors = (code: string, type: string) => {
@@ -51,8 +57,25 @@ const safeDeepCopy = <T,>(obj: T): T => {
 };
 
 export const HodDashboard = () => {
-  const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs'>('overview');
+  const appState = useApp();
+  const { currentUser, curriculum, users, allocations, assignTutor, currentSemesterType, semesterStartDate, semesterEndDate, briefs, updateBrief, addBrief, submissions, semesterPlans, toggleSemesterPlan, clearSemesterPlan, holidays, customEvents, addCustomEvent, deleteCustomEvent, rooms, lessonPlans, addLessonPlan, updateLessonPlan, saveModuleSyllabus, moduleSyllabi } = appState;
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'timetable' | 'briefs' | 'teaching' | 'attendance' | 'industry' | 'final-year' | 'kpis'>('overview');
+  const [hodKpis, setHodKpis] = useState<KpiResult[]>([]);
+  const [hodAsTutorKpis, setHodAsTutorKpis] = useState<KpiResult[]>([]);
+  const [isLoadingKpis, setIsLoadingKpis] = useState(false);
+
+  useEffect(() => {
+      if (activeTab !== 'kpis' || !currentUser) return;
+      setIsLoadingKpis(true);
+      Promise.all([
+          calculateHodOnlyKpis(currentUser.id, appState),
+          calculateModuleTutorKpis(currentUser.id, appState),
+      ]).then(([hodResult, tutorResult]) => {
+          setHodKpis(hodResult);
+          setHodAsTutorKpis(tutorResult);
+          setIsLoadingKpis(false);
+      });
+  }, [activeTab, currentUser, appState]);
   const [expandedPrograms, setExpandedPrograms] = useState<string[]>([]);
   const [expandedYears, setExpandedYears] = useState<string[]>([]);
   const [trackingModule, setTrackingModule] = useState<Module | null>(null);
@@ -62,7 +85,8 @@ export const HodDashboard = () => {
   const [editingBrief, setEditingBrief] = useState<Partial<AssignmentBrief>>({});
   const [briefEditorTab, setBriefEditorTab] = useState<'general' | 'schedule' | 'rubric' | 'preview'>('general');
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
-  const [selectedRubricDeliverableId, setSelectedRubricDeliverableId] = useState<string>(''); 
+  const [selectedRubricDeliverableId, setSelectedRubricDeliverableId] = useState<string>('');
+  const [expandedRubricWeek, setExpandedRubricWeek] = useState<number | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
 
   // Selectors for Brief Modal
@@ -112,6 +136,16 @@ export const HodDashboard = () => {
       const moduleCodes = allDepartmentModules.map(m => m.code);
       return briefs.filter(b => moduleCodes.includes(b.moduleCode));
   }, [briefs, allDepartmentModules]);
+
+  // All students in the department, any year — used by Phase 4 panels (portfolio/
+  // placement/final-year projects). Deliberately not filtered to a "final year" subset:
+  // there's no reliable signal for how many years a given program runs, so the panels let
+  // staff pick the actual final-year students themselves rather than guessing.
+  const allDepartmentStudents = useMemo(() => {
+      if (allDepartmentModules.length === 0) return [];
+      const deptProgramsNorm: string[] = Array.from(new Set(allDepartmentModules.map(m => normalizeProgram(m.programTitle))));
+      return users.filter(u => u.role === Role.Student && deptProgramsNorm.some(dp => normalizeProgram(u.programId).includes(dp) || dp.includes(normalizeProgram(u.programId))));
+  }, [users, allDepartmentModules]);
 
   const groupedModules = useMemo(() => {
     if (!currentUser) return {};
@@ -300,6 +334,60 @@ export const HodDashboard = () => {
       setEditingBrief({ ...editingBrief, deliverables: newDeliverables });
   };
 
+  // Weekly-milestone rubric editing (Phase 1 KRA/KPI: briefs establish weekly milestones
+  // WITH a rubric, so the weekly feedback form can score students against the same rubric).
+  const updateWeekCriteria = (weekIdx: number, criteriaId: string, field: string, value: any) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = [...(newSchedule[weekIdx].rubric || [])];
+      const critIdx = rubric.findIndex(r => r.id === criteriaId);
+      if (critIdx === -1) return;
+      rubric[critIdx] = { ...rubric[critIdx], [field]: value };
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const updateWeekLevel = (weekIdx: number, criteriaId: string, levelIdx: number, value: string) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = [...(newSchedule[weekIdx].rubric || [])];
+      const critIdx = rubric.findIndex(r => r.id === criteriaId);
+      if (critIdx === -1) return;
+      const levels = [...rubric[critIdx].levels];
+      levels[levelIdx] = { ...levels[levelIdx], description: value };
+      rubric[critIdx] = { ...rubric[critIdx], levels };
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const applyWeekRubricTemplate = (weekIdx: number, templateName: string) => {
+      const template = RUBRIC_TEMPLATES[templateName];
+      if (!template) return;
+      const cloned = safeDeepCopy(template);
+      (cloned as any[]).forEach((r: any) => r.id = `wk-crit-${Date.now()}-${Math.random()}`);
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric: cloned as any };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const addWeekCriterion = (weekIdx: number) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = [...(newSchedule[weekIdx].rubric || [])];
+      rubric.push({
+          id: `wk-crit-${Date.now()}`,
+          criteria: 'New Criterion',
+          weightage: 0,
+          levels: RUBRIC_GRADE_LEVELS.map(grade => ({ grade, description: '' })),
+      });
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
+  const removeWeekCriterion = (weekIdx: number, criteriaId: string) => {
+      const newSchedule = [...(editingBrief.weeklySchedule || [])];
+      const rubric = (newSchedule[weekIdx].rubric || []).filter(r => r.id !== criteriaId);
+      newSchedule[weekIdx] = { ...newSchedule[weekIdx], rubric };
+      setEditingBrief({ ...editingBrief, weeklySchedule: newSchedule });
+  };
+
   const currentDeliverable = useMemo(() => { return (editingBrief.deliverables || []).find(d => d.id === selectedRubricDeliverableId); }, [editingBrief.deliverables, selectedRubricDeliverableId]);
   const toggleProgram = (prog: string) => { setExpandedPrograms(prev => prev.includes(prog) ? prev.filter(p => p !== prog) : [...prev, prog]); };
   const toggleYear = (progYearKey: string) => { setExpandedYears(prev => prev.includes(progYearKey) ? prev.filter(y => y !== progYearKey) : [...prev, progYearKey]); };
@@ -322,11 +410,47 @@ export const HodDashboard = () => {
                 <p className="text-sm text-gray-500 mt-1">Managing allocations and assignments for {currentSemesterType} Semester.</p>
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg flex-wrap gap-1">
-                {['overview', 'briefs', 'planner', 'timetable'].map(tab => (
+                {['overview', 'briefs', 'planner', 'timetable', 'teaching', 'attendance', 'industry', 'final-year', 'kpis'].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} capitalize`}>{tab}</button>
                 ))}
             </div>
         </div>
+
+        {/* Modules the HOD personally teaches (allocations where they are the tutor) get the
+            same dedicated weekly feedback session as any Module Tutor — HODs are held to the
+            same standard, no exemption. */}
+        {activeTab === 'teaching' && (
+            <WeeklyFeedback title="As Module Tutor — Weekly Feedback" />
+        )}
+
+        {activeTab === 'attendance' && (
+            <AttendanceWatchlist scope="department" title="Department Attendance Watchlist" />
+        )}
+
+        {activeTab === 'industry' && (
+            <IndustryAlumniPanel scopedModules={allDepartmentModules} title="Industry & Alumni Engagement" />
+        )}
+
+        {activeTab === 'final-year' && (
+            <FinalYearTrackPanel students={allDepartmentStudents} title="Final-Year Track" />
+        )}
+
+        {/* Kept visually distinct per the task's explicit instruction — "As HOD" and "As
+            Module Tutor" are two separate KPI sets and must not overwrite each other. */}
+        {activeTab === 'kpis' && (
+            <div className="space-y-6">
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">As HOD — Department KRA/KPI Scorecard</h3>
+                    <p className="text-sm text-gray-500 mb-4">11 HOD-specific KPIs (departmental quality, RVJ audit, industry/alumni, awards, placement, etc.), computed for your department.</p>
+                    <KpiGrid kpis={hodKpis} isLoading={isLoadingKpis} />
+                </div>
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">As Module Tutor — Scorecard</h3>
+                    <p className="text-sm text-gray-500 mb-4">The same 16 Module Tutor KPIs every tutor is held to, computed for the modules you personally teach. No exemption.</p>
+                    <KpiGrid kpis={hodAsTutorKpis} isLoading={isLoadingKpis} />
+                </div>
+            </div>
+        )}
 
         {activeTab === 'overview' && (
             <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -389,7 +513,52 @@ export const HodDashboard = () => {
                 )}
             </div>
         )}
-        
+
+        {/* RECONSTRUCTED: this tab's body was missing from the source export (handleOpenCreateBrief,
+            handleOpenEditBrief and departmentBriefs were defined above but never referenced anywhere).
+            Wires those existing handlers into the Brief Creation Modal below. Please verify this
+            matches the intended "Briefs" tab layout. */}
+        {activeTab === 'briefs' && (
+            <div className="bg-white shadow rounded-lg">
+                <div className="p-6 flex justify-between items-center border-b">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">Assignment Briefs</h3>
+                        <p className="text-sm text-gray-500 mt-1">Create and manage briefs for department modules.</p>
+                    </div>
+                    <button onClick={handleOpenCreateBrief} className="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-indigo-700 flex items-center">
+                        <Plus size={16} className="mr-2" /> Create Brief
+                    </button>
+                </div>
+                {departmentBriefs.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">No briefs created yet.</div>
+                ) : (
+                    <ul className="divide-y divide-gray-200">
+                        {departmentBriefs.slice().sort((a, b) => b.createdAt - a.createdAt).map(brief => {
+                            const mod = curriculum.find(m => m.code === brief.moduleCode);
+                            const statusStyle: Record<AssignmentBrief['status'], string> = {
+                                'Draft': 'bg-gray-100 text-gray-600',
+                                'Pending Approval': 'bg-yellow-100 text-yellow-700',
+                                'Published': 'bg-green-100 text-green-700',
+                                'Rejected': 'bg-red-100 text-red-700',
+                            };
+                            return (
+                                <li key={brief.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                                    <div>
+                                        <div className="font-medium text-gray-900">{brief.title}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5">{mod?.title || brief.moduleCode} &middot; {brief.weeks} weeks</div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyle[brief.status]}`}>{brief.status}</span>
+                                        <button onClick={() => handleOpenEditBrief(brief)} className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded"><Edit size={16} /></button>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </div>
+        )}
+
         {activeTab === 'planner' && (
             <div className="space-y-6">
                 {/* Controls */}
@@ -806,7 +975,89 @@ export const HodDashboard = () => {
                                         </div>
                                      )}
                                      {briefEditorTab==='schedule' && (
-                                        <div className="space-y-6">{(editingBrief.weeklySchedule || []).map((week, idx) => (<div key={idx} className="bg-white p-4 rounded border border-gray-200"><div className="flex justify-between mb-2"><span className="text-xs font-bold text-gray-500 uppercase">Week {week.weekNumber}</span></div><input type="text" className="block w-full border-gray-300 rounded-md p-2 text-sm font-bold mb-2" value={week.topic} onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx].topic = e.target.value; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}/><textarea className="block w-full border-gray-300 rounded-md p-2 text-sm" value={week.description} onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx].description = e.target.value; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}/></div>))}</div>
+                                        <div className="space-y-4">
+                                            {(editingBrief.weeklySchedule || []).map((week, idx) => {
+                                                const isRubricOpen = expandedRubricWeek === week.weekNumber;
+                                                const rubricCount = (week.rubric || []).length;
+                                                return (
+                                                    <div key={idx} className="bg-white p-4 rounded border border-gray-200">
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <span className="text-xs font-bold text-gray-500 uppercase">Week {week.weekNumber}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExpandedRubricWeek(isRubricOpen ? null : week.weekNumber)}
+                                                                className={`text-[10px] font-bold px-2 py-1 rounded-full border flex items-center gap-1 ${rubricCount > 0 ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
+                                                            >
+                                                                <Layers size={10} /> Milestone Rubric{rubricCount > 0 ? ` (${rubricCount})` : ''}
+                                                            </button>
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            className="block w-full border-gray-300 rounded-md p-2 text-sm font-bold mb-2"
+                                                            value={week.topic}
+                                                            onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx] = { ...newSched[idx], topic: e.target.value }; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}
+                                                        />
+                                                        <textarea
+                                                            className="block w-full border-gray-300 rounded-md p-2 text-sm"
+                                                            value={week.description}
+                                                            onChange={(e) => { const newSched = [...(editingBrief.weeklySchedule || [])]; newSched[idx] = { ...newSched[idx], description: e.target.value }; setEditingBrief({...editingBrief, weeklySchedule: newSched}); }}
+                                                        />
+
+                                                        {isRubricOpen && (
+                                                            <div className="mt-4 pt-4 border-t border-dashed border-gray-200 space-y-3">
+                                                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                                                    <span className="text-[10px] font-bold text-gray-500 uppercase">This week's milestone rubric — used by the weekly feedback form</span>
+                                                                    <div className="flex gap-1 flex-wrap">
+                                                                        {Object.keys(RUBRIC_TEMPLATES).map(tmpl => (
+                                                                            <button type="button" key={tmpl} onClick={() => applyWeekRubricTemplate(idx, tmpl)} className="text-[10px] bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded text-gray-700">{tmpl}</button>
+                                                                        ))}
+                                                                        <button type="button" onClick={() => addWeekCriterion(idx)} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded text-indigo-700 flex items-center gap-1"><Plus size={10}/> Criterion</button>
+                                                                    </div>
+                                                                </div>
+                                                                {(week.rubric || []).length === 0 ? (
+                                                                    <div className="text-xs text-gray-400 italic">No rubric yet — students won't be scored for this week's milestone until one is added.</div>
+                                                                ) : (
+                                                                    (week.rubric || []).map((criteria) => (
+                                                                        <div key={criteria.id} className="border rounded-lg p-3 bg-gray-50">
+                                                                            <div className="flex justify-between mb-2">
+                                                                                <input
+                                                                                    className="font-bold text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:outline-none w-2/3"
+                                                                                    value={criteria.criteria}
+                                                                                    onChange={(e) => updateWeekCriteria(idx, criteria.id, 'criteria', e.target.value)}
+                                                                                />
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-xs text-gray-500">Weight:</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        className="w-12 text-xs border rounded p-1 text-center"
+                                                                                        value={criteria.weightage}
+                                                                                        onChange={(e) => updateWeekCriteria(idx, criteria.id, 'weightage', parseInt(e.target.value))}
+                                                                                    />
+                                                                                    <span className="text-xs text-gray-500">%</span>
+                                                                                    <button type="button" onClick={() => removeWeekCriterion(idx, criteria.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={12}/></button>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="grid grid-cols-5 gap-1 mt-2">
+                                                                                {criteria.levels.map((level, lIdx) => (
+                                                                                    <div key={lIdx} className="text-[10px] p-1 bg-white border rounded">
+                                                                                        <div className="font-bold text-indigo-700">{level.grade}</div>
+                                                                                        <textarea
+                                                                                            className="w-full h-16 border-none resize-none text-[9px] text-gray-600 focus:ring-0 bg-transparent mt-1"
+                                                                                            value={level.description}
+                                                                                            onChange={(e) => updateWeekLevel(idx, criteria.id, lIdx, e.target.value)}
+                                                                                        />
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                      )}
                                      {briefEditorTab === 'rubric' && (
                                         <div className="space-y-6">
@@ -915,6 +1166,7 @@ export const HodDashboard = () => {
                         </div>
                     </div>
                 </div>
+            </div>
             )}
     </div>
   );

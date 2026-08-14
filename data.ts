@@ -1,4 +1,4 @@
-import { User, Module, Role } from '../types';
+import { User, Module, Role, AttendanceWarningLevel } from './types';
 
 export const LIKERT_QUESTIONS = [
     "The instructor explained the concepts clearly.",
@@ -22,6 +22,143 @@ export const CAMPUS_LIKERT_QUESTIONS = [
 ];
 
 export const CAMPUS_FEEDBACK_CODE = 'GENERAL_CAMPUS_FEEDBACK';
+
+// Grade vocabulary shared by RubricLevel, FeedbackRubricScore and RvjAssessment so a
+// student's weekly rubric score and their RVJ score always read on the same scale.
+export const RUBRIC_GRADE_LEVELS = ['Excellent', 'Very Good', 'Good', 'Average', 'Poor'];
+
+// The 14 points every weekly module feedback session (Module Tutor or HOD teaching
+// their own module) must review. Surfaced as a checklist in WeeklyFeedback.tsx and
+// stored per-session on ModuleFeedbackSession.checklist, keyed by id.
+export const SESSION_CHECKLIST_ITEMS: { id: string; label: string }[] = [
+    { id: 'briefProgress', label: 'Current brief progress' },
+    { id: 'taskMilestones', label: 'Daily/hourly task milestones' },
+    { id: 'learningOutcomes', label: 'Learning-outcome achievement' },
+    { id: 'rvjDevelopment', label: 'RVJ development' },
+    { id: 'masterPractitioner', label: 'Master-practitioner research' },
+    { id: 'designThinking', label: 'Design-thinking process' },
+    { id: 'ideation', label: 'Multiple solutions / ideation' },
+    { id: 'experimentation', label: 'Experimentation' },
+    { id: 'designEvolution', label: 'Design evolution' },
+    { id: 'previousFeedbackImplemented', label: 'Previous feedback implemented' },
+    { id: 'areasForImprovement', label: 'Areas for improvement' },
+    { id: 'studentsFallingBehind', label: 'Students falling behind' },
+    { id: 'interventionNeeded', label: 'Students needing intervention' },
+    { id: 'nextActionExpected', label: 'Next action expected' },
+];
+
+// The 13 RVJ quality dimensions, in AppContext.tsx's RvjAssessment.dimensions key order.
+export const RVJ_DIMENSIONS: { key: string; label: string }[] = [
+    { key: 'researchEvidence', label: 'Research Evidence' },
+    { key: 'theoreticalDeconstruction', label: 'Theoretical Deconstruction' },
+    { key: 'masterPractitionerAnalysis', label: 'Master-Practitioner Analysis' },
+    { key: 'designThinking', label: 'Design Thinking' },
+    { key: 'ideation', label: 'Ideation' },
+    { key: 'multipleSolutions', label: 'Multiple Solutions' },
+    { key: 'experimentation', label: 'Experimentation' },
+    { key: 'evaluation', label: 'Evaluation' },
+    { key: 'iteration', label: 'Iteration' },
+    { key: 'feedbackIncorporation', label: 'Feedback Incorporation' },
+    { key: 'designDecisionRationale', label: 'Design-Decision Rationale' },
+    { key: 'targetAudienceRelationship', label: 'Target-Audience Relationship' },
+    { key: 'evolutionOfFinalDesign', label: 'Evolution of Final Design' },
+];
+
+// Bi-monthly cycle survey (Phase 3) — a NEW, separate 13-category question set, kept apart
+// from LIKERT_QUESTIONS (10 items) so existing SurveyResponse.detailedRatings arrays from
+// before cycles existed are never misread against the wrong question set. Same 1-5 scale
+// and detailedRatings[] plumbing as the legacy survey, just a different question list.
+export interface CycleFeedbackCategory { key: string; label: string; question: string; }
+
+export const CYCLE_FEEDBACK_CATEGORIES: CycleFeedbackCategory[] = [
+    { key: 'moduleClarity', label: 'Module Clarity', question: 'The module structure and expectations were clearly communicated.' },
+    { key: 'briefQuality', label: 'Brief Quality', question: 'The assignment briefs were well-written and easy to follow.' },
+    { key: 'learningOutcomes', label: 'Learning Outcomes', question: 'The learning outcomes for this module were clearly achieved.' },
+    { key: 'teachingQuality', label: 'Teaching Quality', question: 'The quality of teaching in this module met my expectations.' },
+    { key: 'rvj', label: 'RVJ', question: 'My Reflective Visual Journal was reviewed and discussed meaningfully.' },
+    { key: 'feedback', label: 'Feedback', question: 'I received timely, useful feedback on my work.' },
+    { key: 'designThinking', label: 'Design Thinking', question: 'The module strengthened my design-thinking process.' },
+    { key: 'masterPractitioners', label: 'Master Practitioners', question: 'Master-practitioner references and examples were used effectively.' },
+    { key: 'industryExposure', label: 'Industry Exposure', question: 'I had meaningful exposure to industry practice this cycle.' },
+    { key: 'workload', label: 'Workload', question: 'The workload for this module was reasonable and well-paced.' },
+    { key: 'engagement', label: 'Engagement', question: 'I felt engaged and motivated during sessions.' },
+    { key: 'confidence', label: 'Confidence', question: 'I feel more confident in this subject area after this cycle.' },
+    { key: 'overallSatisfaction', label: 'Overall Satisfaction', question: 'Overall, I am satisfied with this module.' },
+];
+
+// Flat question text, parallel to CYCLE_FEEDBACK_CATEGORIES, so it plugs directly into the
+// same detailedRatings[] infrastructure LIKERT_QUESTIONS already uses.
+export const CYCLE_FEEDBACK_QUESTIONS = CYCLE_FEEDBACK_CATEGORIES.map(c => c.question);
+
+// --- INDUSTRY, ALUMNI, PORTFOLIO & PLACEMENT (Phase 4) ---
+
+export const INDUSTRY_ENGAGEMENT_TYPES = [
+    'Guest Lecture', 'Seminar', 'Masterclass', 'Industrial Visit', 'Mentorship', 'Live Project', 'Industry Portfolio Review',
+];
+
+// Identify -> Contact -> Engage -> Schedule -> Collaborate -> Student Exposure ->
+// Document Outcome -> Maintain Relationship, in pipeline order.
+export const INDUSTRY_PIPELINE_STAGES = [
+    'Identify', 'Contact', 'Engage', 'Schedule', 'Collaborate', 'Student Exposure', 'Document Outcome', 'Maintain Relationship',
+];
+
+// An engagement only counts toward the "meaningful engagement" target once it has actually
+// reached students or been documented — see calculateIndustryEngagementCoverage in
+// kpiService.ts. Identify/Contact/Engage/Schedule/Collaborate are pipeline progress, not
+// delivered engagement.
+export const INDUSTRY_ENGAGEMENT_COUNTED_STAGES = ['Student Exposure', 'Document Outcome', 'Maintain Relationship'];
+export const INDUSTRY_ENGAGEMENT_TARGET_PER_MODULE = 2;
+
+export const PORTFOLIO_REVIEW_DIMENSIONS: { key: string; label: string }[] = [
+    { key: 'portfolioStructure', label: 'Portfolio Structure' },
+    { key: 'projectSelection', label: 'Project Selection' },
+    { key: 'research', label: 'Research' },
+    { key: 'designProcess', label: 'Design Process' },
+    { key: 'craft', label: 'Craft' },
+    { key: 'technicalSkills', label: 'Technical Skills' },
+    { key: 'presentation', label: 'Presentation' },
+    { key: 'industryRelevance', label: 'Industry Relevance' },
+    { key: 'employability', label: 'Employability' },
+];
+
+export const PLACEMENT_STATUS_OPTIONS = [
+    'Not Started', 'Preparing', 'Applying', 'Interviewing', 'Offer Received', 'Placed', 'Opted Out',
+];
+
+export const ENTREPRENEURIAL_POTENTIAL_OPTIONS = ['None', 'Low', 'Medium', 'High'];
+export const AWARD_READINESS_OPTIONS = ['Not Assessed', 'Not Ready', 'Ready', 'Submitted', 'Shortlisted', 'Won'];
+export const AWARD_PIPELINE_MENTORING_TARGET = 3; // >=3 projects identified with genuine award potential, campus-wide
+
+// ICAT-internal early-warning thresholds — NOT university/statutory attendance-eligibility
+// rules. Falling below EARLY_WARNING puts a student on the watchlist; falling below
+// CRITICAL requires a documented intervention + written recovery plan AND triggers formal
+// escalation to the Vice Principal (both happen at the same threshold crossing).
+export const ATTENDANCE_THRESHOLDS = {
+    EARLY_WARNING: 85,
+    CRITICAL: 75,
+};
+
+export const getAttendanceWarningLevel = (percent: number): AttendanceWarningLevel => {
+    if (percent < ATTENDANCE_THRESHOLDS.CRITICAL) return 'Critical';
+    if (percent < ATTENDANCE_THRESHOLDS.EARLY_WARNING) return 'Early Warning';
+    return 'On Track';
+};
+
+// A whole-batch attendance drop of this many percentage points (comparing the earlier vs.
+// later half of a module's recorded sessions) is flagged as a SystemicAttendanceAlert for
+// investigation — deliberately not attributed to individual students.
+export const SYSTEMIC_DECLINE_THRESHOLD_POINTS = 10;
+
+export const SYSTEMIC_ATTENDANCE_CAUSES = [
+    'Teaching approach',
+    'Brief clarity',
+    'Workload',
+    'Timetable',
+    'Engagement',
+    'Classroom environment',
+    'Module difficulty',
+    'Other',
+];
 
 export const normalizeProgram = (p: string) => p ? p.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '') : '';
 

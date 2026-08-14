@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
-import { Room } from '../types';
+import { useApp } from './AppContext';
+import { Room } from './types';
 import { Building, Plus, Trash2, Edit, X, Users, LayoutGrid, Check, MapPin } from 'lucide-react';
 
 // Fixed Departments based on HODs

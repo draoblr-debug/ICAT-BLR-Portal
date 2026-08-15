@@ -2,11 +2,57 @@
 // components/ManagerDashboard.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from './AppContext';
-import { Role, User, AssignmentBrief } from './types';
+import { Role, User, AssignmentBrief, Module } from './types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend } from 'recharts';
-import { Users, UserPlus, Save, CheckCircle, Clock, Calendar, Settings, FileText, Layout, Zap, ThumbsUp, ThumbsDown, BookOpen, Edit, Trash2, Plus, Filter, X, List, Layers, ArrowRight, BarChart2, RefreshCw, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, UserPlus, Save, CheckCircle, Clock, Calendar, Settings, FileText, Layout, Zap, ThumbsUp, ThumbsDown, BookOpen, Edit, Trash2, Plus, Filter, X, List, Layers, ArrowRight, BarChart2, RefreshCw, Loader2, ChevronLeft, ChevronRight, TrendingUp, AlertTriangle } from 'lucide-react';
 import { normalizeProgram, getHodDepartments, getLocalDateString } from './data';
 import { calculateModulePerformance, calculateDepartmentPerformance, calculateLessonTracking, calculateDetailedAnalysis } from './analyticsService';
+
+// Every student's next-year eligibility is derived from the curriculum itself, rather than
+// a hardcoded per-program length: a student's program has a "next year" only if the
+// curriculum has modules for (their normalized program, currentYear + 1). This is the same
+// normalizeProgram substring-match convention used everywhere else (see getCohort in
+// WeeklyFeedback.tsx). Two real cases fall out of this naturally and are deliberately left
+// for manual review rather than guessed at:
+//   - Final-year students (e.g. Year 3 of a 3-year B Sc, Year 4 of a BVA specialization) —
+//     there's no "graduated" status in this app, so these need a human decision.
+//   - Foundation-year students (BVA Visual Arts (Foundation) only has Year 1 modules) — Year
+//     2 of their specialization is a DIFFERENT program title, which we cannot guess (there
+//     are multiple BVA specializations); the DRAO has to reassign programId by hand.
+interface PromotionPlanEntry { student: User; fromYear: number; toYear: number; }
+interface PromotionReviewEntry { student: User; currentYear: number; reason: string; }
+interface PromotionPlan { toPromote: PromotionPlanEntry[]; needsReview: PromotionReviewEntry[]; }
+
+const buildPromotionPlan = (users: User[], curriculum: Module[]): PromotionPlan => {
+  const toPromote: PromotionPlanEntry[] = [];
+  const needsReview: PromotionReviewEntry[] = [];
+
+  users.filter(u => u.role === Role.Student).forEach(student => {
+    const currentYear = student.year;
+    if (!currentYear) {
+      needsReview.push({ student, currentYear: 0, reason: 'No year on record' });
+      return;
+    }
+    const normStudentProgram = normalizeProgram(student.programId);
+    const matchingYears = Array.from(new Set(
+      curriculum
+        .filter(m => normalizeProgram(m.programTitle).includes(normStudentProgram) || normStudentProgram.includes(normalizeProgram(m.programTitle)))
+        .map(m => m.year)
+    ));
+    if (matchingYears.length === 0) {
+      needsReview.push({ student, currentYear, reason: 'No matching program found in curriculum' });
+      return;
+    }
+    const maxYear = Math.max(...matchingYears);
+    if (currentYear >= maxYear) {
+      needsReview.push({ student, currentYear, reason: 'At final year for this program — needs graduation or reassignment to a specialization' });
+      return;
+    }
+    toPromote.push({ student, fromYear: currentYear, toYear: currentYear + 1 });
+  });
+
+  return { toPromote, needsReview };
+};
 
 export const ManagerDashboard = () => {
   const {
@@ -36,6 +82,12 @@ export const ManagerDashboard = () => {
     feedbackOpenOdd: false,
     feedbackOpenEven: false,
   });
+
+  // Academic Year Promotion State
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
+  const [promotionPlan, setPromotionPlan] = useState<PromotionPlan | null>(null);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [promoteResult, setPromoteResult] = useState<string | null>(null);
 
   // User Management State
   const [userSearch, setUserSearch] = useState('');
@@ -125,6 +177,33 @@ export const ManagerDashboard = () => {
     };
     updateSemesterConfig(payload as any);
     alert('Configuration updated.');
+  };
+
+  // --- ACADEMIC YEAR PROMOTION ---
+  const openPromoteModal = () => {
+    setPromotionPlan(buildPromotionPlan(users, curriculum));
+    setPromoteResult(null);
+    setIsPromoteModalOpen(true);
+  };
+
+  const closePromoteModal = () => {
+    setIsPromoteModalOpen(false);
+    setPromotionPlan(null);
+    setPromoteResult(null);
+  };
+
+  const handleConfirmPromote = () => {
+    if (!promotionPlan || promotionPlan.toPromote.length === 0) return;
+    setIsPromoting(true);
+    // updateUserProfile applies to local app state synchronously and syncs to Firestore in
+    // the background (same fire-and-forget pattern as confirmEmailSent's loop in
+    // WeeklyFeedback.tsx) — for a promotion this size, waiting on every write's Firestore
+    // round-trip before showing success would make the UI hang on a slow connection for no
+    // benefit, since the promotion has already taken effect locally by the time this runs.
+    promotionPlan.toPromote.forEach(entry => updateUserProfile(entry.student.id, { year: entry.toYear }));
+    setIsPromoting(false);
+    setPromoteResult(`Promoted ${promotionPlan.toPromote.length} student${promotionPlan.toPromote.length === 1 ? '' : 's'} to their next year.`);
+    setPromotionPlan(prev => prev ? { toPromote: [], needsReview: prev.needsReview } : null);
   };
 
   // --- USER HANDLERS ---
@@ -518,9 +597,10 @@ export const ManagerDashboard = () => {
       )}
 
       {activeTab === 'settings' && (
+        <div className="space-y-6">
           <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2"><Settings className="text-indigo-600"/> Semester Settings</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                       <h3 className="font-medium text-gray-700 border-b pb-2">Academic Calendar Period</h3>
@@ -580,6 +660,15 @@ export const ManagerDashboard = () => {
                   </button>
               </div>
           </div>
+
+          <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2"><TrendingUp className="text-indigo-600"/> Academic Year Promotion</h2>
+              <p className="text-sm text-gray-500 mb-6">Move every student to the next year of their program (Year I → Year II, etc.). Students already at their program's final year, or who've just completed Foundation, are skipped and listed for manual review instead of being guessed at.</p>
+              <button onClick={openPromoteModal} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2">
+                  <TrendingUp size={18}/> Promote Students
+              </button>
+          </div>
+        </div>
       )}
 
       {activeTab === 'calendar' && (
@@ -722,6 +811,98 @@ export const ManagerDashboard = () => {
                       <button onClick={() => setIsRejectModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
                       <button onClick={handleRejectBrief} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-bold">Send Feedback</button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {isPromoteModalOpen && promotionPlan && (
+          <div className="fixed z-50 inset-0 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+                  <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="text-indigo-600" size={20}/> Promote Students to Next Year</h3>
+                      <button onClick={closePromoteModal}><X size={22} className="text-gray-400 hover:text-gray-600"/></button>
+                  </div>
+
+                  {promoteResult ? (
+                      <div className="space-y-4">
+                          <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-4 text-sm font-medium flex items-center gap-2">
+                              <CheckCircle size={18}/> {promoteResult}
+                          </div>
+                          {promotionPlan.needsReview.length > 0 && (
+                              <div>
+                                  <h4 className="text-sm font-bold text-gray-700 mb-2">Still needs manual review ({promotionPlan.needsReview.length})</h4>
+                                  <ul className="divide-y divide-gray-100 border rounded-lg max-h-64 overflow-y-auto">
+                                      {promotionPlan.needsReview.map(r => (
+                                          <li key={r.student.id} className="px-4 py-2 text-sm">
+                                              <div className="font-medium text-gray-800">{r.student.name} <span className="text-xs text-gray-400">({r.student.programId}, Year {r.currentYear || '—'})</span></div>
+                                              <div className="text-xs text-amber-600">{r.reason}</div>
+                                          </li>
+                                      ))}
+                                  </ul>
+                              </div>
+                          )}
+                          <div className="flex justify-end">
+                              <button onClick={closePromoteModal} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Done</button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-3">
+                              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                                  <div className="text-2xl font-bold text-indigo-700">{promotionPlan.toPromote.length}</div>
+                                  <div className="text-xs text-indigo-600 font-medium">will be promoted</div>
+                              </div>
+                              <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
+                                  <div className="text-2xl font-bold text-amber-700">{promotionPlan.needsReview.length}</div>
+                                  <div className="text-xs text-amber-600 font-medium">need manual review</div>
+                              </div>
+                          </div>
+
+                          {promotionPlan.toPromote.length > 0 && (
+                              <div>
+                                  <h4 className="text-sm font-bold text-gray-700 mb-2">Will promote</h4>
+                                  <ul className="divide-y divide-gray-100 border rounded-lg max-h-48 overflow-y-auto">
+                                      {promotionPlan.toPromote.map(p => (
+                                          <li key={p.student.id} className="px-4 py-2 text-sm flex justify-between">
+                                              <span className="text-gray-800">{p.student.name} <span className="text-xs text-gray-400">({p.student.programId})</span></span>
+                                              <span className="text-xs font-medium text-indigo-600">Year {p.fromYear} → Year {p.toYear}</span>
+                                          </li>
+                                      ))}
+                                  </ul>
+                              </div>
+                          )}
+
+                          {promotionPlan.needsReview.length > 0 && (
+                              <div>
+                                  <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1"><AlertTriangle size={14} className="text-amber-500"/> Needs manual review ({promotionPlan.needsReview.length}) — will NOT be changed</h4>
+                                  <ul className="divide-y divide-gray-100 border rounded-lg max-h-48 overflow-y-auto">
+                                      {promotionPlan.needsReview.map(r => (
+                                          <li key={r.student.id} className="px-4 py-2 text-sm">
+                                              <div className="font-medium text-gray-800">{r.student.name} <span className="text-xs text-gray-400">({r.student.programId}, Year {r.currentYear || '—'})</span></div>
+                                              <div className="text-xs text-amber-600">{r.reason}</div>
+                                          </li>
+                                      ))}
+                                  </ul>
+                              </div>
+                          )}
+
+                          {promotionPlan.toPromote.length === 0 ? (
+                              <p className="text-sm text-gray-500 italic">No students are eligible for automatic promotion right now.</p>
+                          ) : (
+                              <div className="flex justify-end gap-3 pt-2">
+                                  <button onClick={closePromoteModal} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                                  <button
+                                      onClick={handleConfirmPromote}
+                                      disabled={isPromoting}
+                                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold flex items-center gap-2 disabled:opacity-50"
+                                  >
+                                      {isPromoting ? <Loader2 size={16} className="animate-spin"/> : <TrendingUp size={16}/>}
+                                      {isPromoting ? 'Promoting…' : `Confirm — Promote ${promotionPlan.toPromote.length} Student${promotionPlan.toPromote.length === 1 ? '' : 's'}`}
+                                  </button>
+                              </div>
+                          )}
+                      </div>
+                  )}
               </div>
           </div>
       )}
